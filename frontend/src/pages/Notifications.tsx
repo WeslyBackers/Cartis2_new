@@ -57,6 +57,28 @@ const getProductObjnam = (product: any): string => {
   return product.name || product.code;
 };
 
+const isPublCorrectionListProduct = (product: any): boolean => {
+  const code = String(product?.code || '').trim().toUpperCase();
+  const name = String(product?.name || '').trim().toLowerCase();
+
+  return (
+    code.startsWith('VL-') ||
+    name.includes('verbeterlijst') ||
+    name.includes('list of corrections') ||
+    name.includes('listofcorrections')
+  );
+};
+
+const getAffectedProductsForCurrentLine = (products: any[] = [], currentProductionLineId: number | null) => {
+  const lineProducts = products.filter((p: any) => currentProductionLineId ? p.production_line_id === currentProductionLineId : true);
+
+  if (currentProductionLineId === 4) {
+    return lineProducts.filter(isPublCorrectionListProduct);
+  }
+
+  return lineProducts;
+};
+
 // Helper function to clean zone name (strip HTML and parse JSON)
 const cleanZoneName = (zoneName: string): string => {
   if (!zoneName) return '';
@@ -632,7 +654,10 @@ export default function Notifications() {
         if (!zoneText.includes(colFilterZones.toLowerCase())) return false;
       }
       if (colFilterProducts) {
-        const prodText = (n.products || []).filter((p: any) => currentProductionLineId ? p.production_line_id === currentProductionLineId : true).map((p: any) => `${p.code} ${getProductObjnam(p)}`).join(' ').toLowerCase();
+        const prodText = getAffectedProductsForCurrentLine(n.products || [], currentProductionLineId)
+          .map((p: any) => `${p.code} ${getProductObjnam(p)}`)
+          .join(' ')
+          .toLowerCase();
         if (!prodText.includes(colFilterProducts.toLowerCase())) return false;
       }
       if (colFilterTask) {
@@ -1445,12 +1470,8 @@ export default function Notifications() {
                       </td>
                       <td style={{ maxWidth: '200px', fontSize: '0.85rem' }} onClick={() => toggleExpand(notification.id)}>
                         {(() => {
-                          const allProducts = notification.products || [];
-                          const currentPlProducts = allProducts.filter((p: any) => p.production_line_id === currentProductionLineId);
-                          const publProducts = currentProductionLineId !== 4
-                            ? allProducts.filter((p: any) => p.production_line_id === 4)
-                            : [];
-                          if (currentPlProducts.length === 0 && publProducts.length === 0) return <span className="text-muted">-</span>;
+                          const currentPlProducts = getAffectedProductsForCurrentLine(notification.products || [], currentProductionLineId);
+                          if (currentPlProducts.length === 0) return <span className="text-muted">-</span>;
                           
                           return (
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem' }}>
@@ -1459,17 +1480,6 @@ export default function Notifications() {
                                   key={p.id}
                                   className="product-tag product-tag--current"
                                   title={`${p.code} - ${getProductObjnam(p)}`}
-                                  onClick={(e) => navigateToProductVersion(e, p)}
-                                  style={{ cursor: 'pointer' }}
-                                >
-                                  {p.code}
-                                </span>
-                              ))}
-                              {publProducts.map((p: any) => (
-                                <span
-                                  key={p.id}
-                                  className="product-tag product-tag--publ"
-                                  title={`PUBL: ${p.code} - ${getProductObjnam(p)}`}
                                   onClick={(e) => navigateToProductVersion(e, p)}
                                   style={{ cursor: 'pointer' }}
                                 >
@@ -2730,8 +2740,7 @@ export default function Notifications() {
                 </div>
                 {notification.products && notification.products.length > 0 ? (
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-                    {notification.products
-                      .filter((p: any) => currentProductionLineId ? p.production_line_id === currentProductionLineId : true)
+                    {getAffectedProductsForCurrentLine(notification.products, currentProductionLineId)
                       .map((product: any) => (
                         <span
                           key={product.id}
@@ -2937,7 +2946,9 @@ export default function Notifications() {
             })}
 
             {/* Product geometries */}
-            {notification.products?.filter((p: any) => p.geometry && p.production_line_id === currentProductionLineId).map((product: any) => {
+            {getAffectedProductsForCurrentLine(notification.products || [], currentProductionLineId)
+              .filter((p: any) => p.geometry)
+              .map((product: any) => {
               try {
                 const productGeom = typeof product.geometry === 'string' ? JSON.parse(product.geometry) : product.geometry;
                 const feature = {
