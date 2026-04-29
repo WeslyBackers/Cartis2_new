@@ -3,17 +3,6 @@
   "buildCommand": "npm run build",
   "devCommand": "npm run dev",
   "installCommand": "npm install",
-  "env": {
-    "DB_HOST": "@db_host",
-    "DB_PORT": "@db_port",
-    "DB_NAME": "@db_name",
-    "DB_USER": "@db_user",
-    "DB_PASSWORD": "@db_password",
-    "PORT": "3000",
-    "NODE_ENV": "production",
-    "GOOGLE_APPLICATION_CREDENTIALS": "@google_cloud_key",
-    "JWT_SECRET": "@jwt_secret"
-  },
   "builds": [
     {
       "src": "backend/src/index.ts",
