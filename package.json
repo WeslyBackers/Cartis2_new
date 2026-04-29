@@ -25,13 +25,16 @@
     "detect-zones": "node detect-zones-for-existing.js"
   },
   "dependencies": {
+    "@supabase/ssr": "^0.10.2",
+    "@supabase/supabase-js": "^2.105.1",
     "@tmcw/togeojson": "^5.8.1",
     "@xmldom/xmldom": "^0.8.10",
     "dotenv": "^16.3.1",
     "pg": "^8.11.3"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "concurrently": "^8.2.2",
+    "supabase": "^2.95.6"
   },
   "keywords": [
     "nautical",

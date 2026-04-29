@@ -80,8 +80,8 @@ If you prefer a GUI approach:
 ### Install Supabase CLI
 
 ```bash
-# Using npm
-npm install -g supabase
+# Preferred (project-local CLI)
+npm install --save-dev supabase
 
 # Using Homebrew (Mac)
 brew install supabase/tap/supabase
@@ -90,10 +90,19 @@ brew install supabase/tap/supabase
 scoop install supabase
 ```
 
+> Note: `npm install -g supabase` is no longer supported by Supabase CLI.
+> If Scoop is unavailable on Windows, use the local npm dev dependency and run via `npx`.
+
+Verify the CLI install:
+
+```bash
+npx supabase --version
+```
+
 ### Link to Your Project
 
 ```bash
-supabase link --project-ref your-project-ref
+npx supabase link --project-ref your-project-ref
 ```
 
 ### Run Migrations
@@ -123,7 +132,7 @@ cp backend/database/drop-problematic-indexes.sql supabase/migrations/20240101000
 cp backend/database/ensure-test-user.sql supabase/migrations/20240101000019_ensure_test_user.sql
 
 # Push migrations
-supabase db push
+npx supabase db push
 ```
 
 ## What Gets Imported
