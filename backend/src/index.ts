@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import dotenv from 'dotenv';
 import path from 'path';
+import fs from 'fs';
 
 // Routes
 import authRoutes from './routes/auth.routes';
@@ -28,8 +29,11 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(morgan('dev'));
 
-// Static files (voor uploads)
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+// Static files (voor uploads) - only if folder exists (for Vercel compatibility)
+const uploadsPath = path.join(__dirname, '../uploads');
+if (fs.existsSync(uploadsPath)) {
+  app.use('/uploads', express.static(uploadsPath));
+}
 
 // Health check
 app.get('/health', (req: Request, res: Response) => {
