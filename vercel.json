@@ -44,12 +44,5 @@
       "src": "/(.*)",
       "dest": "frontend/dist/index.html"
     }
-  ],
-  "functions": {
-    "backend/src/index.ts": {
-      "memory": 1024,
-      "maxDuration": 60,
-      "includeFiles": "backend/dist/**"
-    }
-  }
+  ]
 }
