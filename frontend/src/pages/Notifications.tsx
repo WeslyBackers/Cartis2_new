@@ -69,11 +69,45 @@ const isPublCorrectionListProduct = (product: any): boolean => {
   );
 };
 
+const VL101_ALIAS_CODES = new Set(['VL-BL', 'VL-ZB_AH', 'VL-ZB-VH']);
+const VL102_ALIAS_CODES = new Set(['VL-NP', 'VL_OS']);
+
+const normalizePublCorrectionListCode = (code: string): string => {
+  const normalized = String(code || '').trim().toUpperCase();
+  if (VL101_ALIAS_CODES.has(normalized)) {
+    return 'VL-101';
+  }
+  if (VL102_ALIAS_CODES.has(normalized)) {
+    return 'VL-102';
+  }
+  return normalized;
+};
+
+const coalescePublCorrectionListProducts = (products: any[] = []) => {
+  const byCode = new Map<string, any>();
+
+  for (const product of products) {
+    const normalizedCode = normalizePublCorrectionListCode(product?.code);
+    const existing = byCode.get(normalizedCode);
+
+    if (existing) {
+      continue;
+    }
+
+    byCode.set(normalizedCode, {
+      ...product,
+      code: normalizedCode,
+    });
+  }
+
+  return Array.from(byCode.values());
+};
+
 const getAffectedProductsForCurrentLine = (products: any[] = [], currentProductionLineId: number | null) => {
   const lineProducts = products.filter((p: any) => currentProductionLineId ? p.production_line_id === currentProductionLineId : true);
 
   if (currentProductionLineId === 4) {
-    return lineProducts.filter(isPublCorrectionListProduct);
+    return coalescePublCorrectionListProducts(lineProducts.filter(isPublCorrectionListProduct));
   }
 
   return lineProducts;
