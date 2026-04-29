@@ -1885,11 +1885,11 @@ export default function NotificationDetail() {
                               latValue={editingCoordinateId ? editCoordinate?.latitude || '' : newCoordinate.latitude}
                               lonValue={editingCoordinateId ? editCoordinate?.longitude || '' : newCoordinate.longitude}
                               onLatChange={(v) => editingCoordinateId
-                                ? setEditCoordinate(prev => prev ? { ...prev, latitude: v } : prev)
+                                ? setEditCoordinate((prev: any) => prev ? { ...prev, latitude: v } : prev)
                                 : setNewCoordinate(prev => ({ ...prev, latitude: v }))
                               }
                               onLonChange={(v) => editingCoordinateId
-                                ? setEditCoordinate(prev => prev ? { ...prev, longitude: v } : prev)
+                                ? setEditCoordinate((prev: any) => prev ? { ...prev, longitude: v } : prev)
                                 : setNewCoordinate(prev => ({ ...prev, longitude: v }))
                               }
                               format={coordFormat}

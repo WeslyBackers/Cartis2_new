@@ -2,7 +2,7 @@
   "version": 2,
   "buildCommand": "npm run build",
   "devCommand": "npm run dev",
-  "installCommand": "npm install --prefix backend && npm install --prefix frontend",
+  "installCommand": "npm install",
   "env": {
     "DB_HOST": "@db_host",
     "DB_PORT": "@db_port",

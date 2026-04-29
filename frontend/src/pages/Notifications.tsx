@@ -35,14 +35,6 @@ let DefaultIcon = L.icon({
 
 L.Marker.prototype.options.icon = DefaultIcon;
 
-// Helper function to check if HTML content is empty
-const isHtmlEmpty = (html: string): boolean => {
-  if (!html) return true;
-  // Remove HTML tags and check if there's any text content
-  const text = html.replace(/<[^>]*>/g, '').trim();
-  return text === '';
-};
-
 // Helper function to strip HTML tags from content
 const stripHtml = (html: string): string => {
   if (!html) return '';
@@ -63,31 +55,6 @@ const getProductObjnam = (product: any): string => {
   }
   
   return product.name || product.code;
-};
-
-// Helper function to get product color based on file category
-const getProductColor = (product: any): string => {
-  if (!product.description) return '#9c27b0';
-  const usageMatch = product.description.match(/Usage (\\d+)/i);
-  const usage = usageMatch ? usageMatch[1] : '';
-  
-  if (product.type === 'pilot_enc') {
-    if (usage === '3') return '#ff6b6b';
-    if (usage === '4') return '#ff5252';
-    if (usage === '5') return '#ff3838';
-    if (usage === '6') return '#cc0000';
-    return '#ff6b6b';
-  } else if (product.type === 'ienc') {
-    return '#51cf66';
-  } else if (product.type === 'enc') {
-    if (usage === '3') return '#3388ff';
-    if (usage === '4') return '#0066cc';
-    if (usage === '5') return '#004499';
-    return '#3388ff';
-  } else if (product.type === 'chart') {
-    return '#ffd43b';
-  }
-  return '#9c27b0';
 };
 
 // Helper function to clean zone name (strip HTML and parse JSON)
@@ -546,25 +513,10 @@ export default function Notifications() {
   const [notes, setNotes] = useState('');
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [bulkNotes, setBulkNotes] = useState('');
-  const [collapsedProductionLines, setCollapsedProductionLines] = useState<Set<number>>(new Set());
-  const [collapsedActivities, setCollapsedActivities] = useState<Set<number>>(new Set());
-  const [editingCommentId, setEditingCommentId] = useState<number | null>(null);
-  const [editCommentText, setEditCommentText] = useState('');
   
   // Resizable layout state for expanded notifications
   const [expandedLeftWidth, setExpandedLeftWidth] = useState(50); // percentage
   const [isResizing, setIsResizing] = useState(false);
-  
-  // Coordinate management
-  const [showCoordinateForm, setShowCoordinateForm] = useState(false);
-  const [newCoordinate, setNewCoordinate] = useState({ latitude: '', longitude: '', label: '', description: '' });
-  const [drawingMode, setDrawingMode] = useState<'none' | 'point' | 'line' | 'area'>('none');
-  const [pendingGeometry, setPendingGeometry] = useState<any>(null);
-  const [inputMode, setInputMode] = useState<'single' | 'manual-line' | 'manual-area'>('single');
-  const [manualCoordinates, setManualCoordinates] = useState<Array<{ lat: string; lon: string }>>([{ lat: '', lon: '' }]);
-  const [editingCoordinateId, setEditingCoordinateId] = useState<number | null>(null);
-  const [editCoordinate, setEditCoordinate] = useState<any>(null);
-  const [extraCoordinatesCollapsed, setExtraCoordinatesCollapsed] = useState(true);
   
   // Column filters (inline, client-side)
   const [colFilterCode, setColFilterCode] = useState('');
@@ -621,11 +573,6 @@ export default function Notifications() {
   const [showZoneManagementDialog, setShowZoneManagementDialog] = useState(false);
   const [zoneManagementNotificationId, setZoneManagementNotificationId] = useState<number | null>(null);
   const [selectedZoneId, setSelectedZoneId] = useState<string>('');
-  const [showZonesOnMap, setShowZonesOnMap] = useState(false);
-  const [showProductsOnMap, setShowProductsOnMap] = useState(true);
-  const [showProductsSectionExpanded, setShowProductsSectionExpanded] = useState(false);
-  const [selectedZoneFiles, setSelectedZoneFiles] = useState<Set<string>>(new Set());
-  const [showZoneFilesDropdown, setShowZoneFilesDropdown] = useState(false);
   const [selectedWmsLayers, setSelectedWmsLayers] = useState<string[]>([]);
   const [wmsLayersPanelOpen, setWmsLayersPanelOpen] = useState(false);
 
@@ -648,22 +595,6 @@ export default function Notifications() {
       };
       
       const response = await api.get('/notifications', { params });
-      return response.data;
-    },
-    enabled: !!currentProductionLineId,
-  });
-
-  // Query for all products of the current production line (for map display)
-  const { data: allProducts } = useQuery({
-    queryKey: ['allProductsForMap', currentProductionLineId],
-    queryFn: async () => {
-      if (!currentProductionLineId) return [];
-      const response = await api.get('/products', {
-        params: { 
-          productionLineId: currentProductionLineId,
-          isActive: true 
-        }
-      });
       return response.data;
     },
     enabled: !!currentProductionLineId,
@@ -731,7 +662,7 @@ export default function Notifications() {
   });
 
   // Query for notification coordinates
-  const { data: coordinates, refetch: refetchCoordinates } = useQuery({
+  const { data: coordinates } = useQuery({
     queryKey: ['notificationCoordinates', expandedId],
     queryFn: async () => {
       const response = await api.get(`/notifications/${expandedId}/coordinates`);
@@ -741,7 +672,7 @@ export default function Notifications() {
   });
 
   // Query for notification comments
-  const { data: comments, refetch: _refetchComments, isLoading: commentsLoading, error: commentsError } = useQuery({
+  const { refetch: _refetchComments } = useQuery({
     queryKey: ['notificationComments', expandedId],
     queryFn: async () => {
       console.log('Fetching comments for notification:', expandedId);
@@ -753,7 +684,7 @@ export default function Notifications() {
   });
 
   // Query for available products (auto-detected) for expanded notification
-  const { data: availableProductsExpanded, refetch: refetchAvailableProductsExpanded } = useQuery({
+  const { refetch: refetchAvailableProductsExpanded } = useQuery({
     queryKey: ['availableProductsExpanded', expandedId, currentProductionLineId],
     queryFn: async () => {
       if (!currentProductionLineId || !expandedId) return [];
@@ -763,31 +694,6 @@ export default function Notifications() {
       return response.data;
     },
     enabled: !!expandedId && !!currentProductionLineId,
-  });
-
-  // Mutations for linking/unlinking products in expanded view
-  const linkProductMutationExpanded = useMutation({
-    mutationFn: async (productId: number) => {
-      await api.post('/products/link-to-notification', {
-        notificationId: expandedId,
-        productId,
-        isRelevant: true
-      });
-    },
-    onSuccess: async () => {
-      await queryClient.refetchQueries({ queryKey: ['notification', expandedId] });
-      await refetchAvailableProductsExpanded();
-    },
-  });
-
-  const unlinkProductMutationExpanded = useMutation({
-    mutationFn: async (productId: number) => {
-      await api.delete(`/products/unlink-from-notification/${expandedId}/${productId}`);
-    },
-    onSuccess: async () => {
-      await queryClient.refetchQueries({ queryKey: ['notification', expandedId] });
-      await refetchAvailableProductsExpanded();
-    },
   });
 
   const detectProductsMutation = useMutation({
@@ -815,142 +721,6 @@ export default function Notifications() {
       await queryClient.invalidateQueries({ queryKey: ['notification', expandedId] });
       await queryClient.refetchQueries({ queryKey: ['notificationComments', expandedId] });
       setNotes('');
-    },
-  });
-
-  const commentMutation = useMutation({
-    mutationFn: async ({ notificationId }: { notificationId: number }) => {
-      if (isHtmlEmpty(notes)) {
-        throw new Error('Opmerking kan niet leeg zijn');
-      }
-      console.log('Sending comment with:', {
-        notificationId,
-        productionLineId: currentProductionLineId,
-        comment: notes
-      });
-      await api.post(`/notifications/${notificationId}/comments`, {
-        comment: notes,
-        productionLineId: currentProductionLineId,
-      });
-    },
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['notificationComments', expandedId] });
-      await queryClient.refetchQueries({ queryKey: ['notificationComments', expandedId] });
-      await queryClient.invalidateQueries({ queryKey: ['notifications'] });
-      await queryClient.invalidateQueries({ queryKey: ['notification', expandedId] });
-      setNotes(''); // Clear input after successful save
-      alert('Opmerking succesvol opgeslagen!');
-    },
-    onError: (error: any) => {
-      console.error('Error adding comment:', error);
-      alert(`Fout bij opslaan opmerking: ${error.response?.data?.error || error.message}`);
-    },
-  });
-
-  const editCommentMutation = useMutation({
-    mutationFn: async ({ commentId, comment }: { commentId: number; comment: string }) => {
-      await api.put(`/notifications/comments/${commentId}`, { comment });
-    },
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['notificationComments', expandedId] });
-      await queryClient.refetchQueries({ queryKey: ['notificationComments', expandedId] });
-      await queryClient.invalidateQueries({ queryKey: ['notifications'] });
-      setEditingCommentId(null);
-      setEditCommentText('');
-      alert('Opmerking succesvol bijgewerkt!');
-    },
-    onError: (error: any) => {
-      console.error('Error updating comment:', error);
-      alert(`Fout bij bijwerken opmerking: ${error.response?.data?.error || error.message}`);
-    },
-  });
-
-  // Add coordinate mutation
-  const addCoordinateMutation = useMutation({
-    mutationFn: async ({ notificationId, coordinate }: { notificationId: number; coordinate: any }) => {
-      await api.post(`/notifications/${notificationId}/coordinates`, coordinate);
-    },
-    onSuccess: async () => {
-      refetchCoordinates();
-      // Force immediate refetch to reload zones list
-      await queryClient.refetchQueries({ queryKey: ['notifications'] });
-      setShowCoordinateForm(false);
-      setNewCoordinate({ latitude: '', longitude: '', label: '', description: '' });
-      setDrawingMode('none');
-      setPendingGeometry(null);
-      setInputMode('single');
-      setManualCoordinates([{ lat: '', lon: '' }]);
-      setEditingCoordinateId(null);
-      setEditCoordinate(null);
-    },
-  });
-
-  // Update coordinate mutation
-  const updateCoordinateMutation = useMutation({
-    mutationFn: async ({ notificationId, coordinateId, coordinate }: { notificationId: number; coordinateId: number; coordinate: any }) => {
-      await api.put(`/notifications/${notificationId}/coordinates/${coordinateId}`, coordinate);
-    },
-    onSuccess: async () => {
-      refetchCoordinates();
-      // Force immediate refetch to reload zones list
-      await queryClient.refetchQueries({ queryKey: ['notifications'] });
-      setEditingCoordinateId(null);
-      setEditCoordinate(null);
-    },
-  });
-
-  // Handle shape drawn on map
-  const handleShapeCreated = (geometry: any) => {
-    setPendingGeometry(geometry);
-    setShowCoordinateForm(true);
-  };
-
-  // Delete coordinate mutation
-  const deleteCoordinateMutation = useMutation({
-    mutationFn: async ({ notificationId, coordinateId }: { notificationId: number; coordinateId: number }) => {
-      await api.delete(`/notifications/${notificationId}/coordinates/${coordinateId}`);
-    },
-    onSuccess: async () => {
-      refetchCoordinates();
-      // Force immediate refetch to reload zones list
-      await queryClient.refetchQueries({ queryKey: ['notifications'] });
-    },
-  });
-
-  // Upload attachment mutation
-  const uploadAttachmentMutation = useMutation({
-    mutationFn: async ({ notificationId, file }: { notificationId: number; file: File }) => {
-      const formData = new FormData();
-      formData.append('file', file);
-      const response = await api.post(`/notifications/${notificationId}/attachments`, formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
-      return response.data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['notifications'] });
-      alert('Bestand succesvol geüpload!');
-    },
-    onError: (error: any) => {
-      console.error('Error uploading file:', error);
-      alert(`Fout bij uploaden bestand: ${error.response?.data?.error || error.message}`);
-    },
-  });
-
-  // Delete attachment mutation
-  const deleteAttachmentMutation = useMutation({
-    mutationFn: async ({ notificationId, attachmentId }: { notificationId: number; attachmentId: number }) => {
-      await api.delete(`/notifications/${notificationId}/attachments/${attachmentId}`);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['notifications'] });
-      alert('Bijlage succesvol verwijderd!');
-    },
-    onError: (error: any) => {
-      console.error('Error deleting attachment:', error);
-      alert(`Fout bij verwijderen bijlage: ${error.response?.data?.error || error.message}`);
     },
   });
 
@@ -1371,10 +1141,6 @@ export default function Notifications() {
       document.removeEventListener('mouseup', handleMouseUp);
     };
   }, [isResizing, expandedId]);
-
-  const handleResizeStart = () => {
-    setIsResizing(true);
-  };
 
   if (!currentProductionLineId) {
     return (
