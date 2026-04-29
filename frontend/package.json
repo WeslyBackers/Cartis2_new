@@ -1,0 +1,45 @@
+{
+  "name": "cartis-frontend",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0"
+  },
+  "dependencies": {
+    "@mapbox/shp-write": "^0.4.3",
+    "@tanstack/react-query": "^5.14.2",
+    "@types/leaflet": "^1.9.21",
+    "@types/leaflet-draw": "^1.0.13",
+    "@types/proj4": "^2.5.6",
+    "axios": "^1.6.2",
+    "clsx": "^2.0.0",
+    "date-fns": "^3.0.0",
+    "jszip": "^3.10.1",
+    "leaflet": "^1.9.4",
+    "leaflet-draw": "^1.0.4",
+    "msgreader": "^1.0.1",
+    "postal-mime": "^2.7.4",
+    "proj4": "^2.20.6",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-leaflet": "^4.2.1",
+    "react-router-dom": "^6.20.1",
+    "suneditor-react": "^3.6.1",
+    "zustand": "^4.4.7"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.43",
+    "@types/react-dom": "^18.2.17",
+    "@typescript-eslint/eslint-plugin": "^6.14.0",
+    "@typescript-eslint/parser": "^6.14.0",
+    "@vitejs/plugin-react": "^4.2.1",
+    "eslint": "^8.55.0",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "eslint-plugin-react-refresh": "^0.4.5",
+    "typescript": "^5.2.2",
+    "vite": "^5.0.8"
+  }
+}

@@ -1,0 +1,3 @@
+-- Note: needs_followup and needs_extra_info already exist in the tasks table (see schema.sql).
+-- This file is no longer needed. The columns were originally added to notifications in error
+-- and have been moved to tasks where they belong.

@@ -1,0 +1,13 @@
+{
+  "dependencies": {
+    "@mapbox/shp-write": "^0.4.3",
+    "@types/bootstrap": "^5.2.10",
+    "bootstrap": "^5.3.8",
+    "jquery": "^4.0.0",
+    "summernote": "^0.9.1"
+  },
+  "devDependencies": {
+    "@types/jquery": "^3.5.33",
+    "@types/summernote": "^0.8.10"
+  }
+}

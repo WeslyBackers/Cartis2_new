@@ -1,0 +1,43 @@
+{
+  "name": "cartis-2.0",
+  "version": "1.0.0",
+  "description": "CARTIS 2.0 - Nautische Meldingen en Taken Administratie",
+  "private": true,
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "install:all": "npm install && npm install --prefix backend && npm install --prefix frontend",
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "npm run dev --prefix backend",
+    "dev:frontend": "npm run dev --prefix frontend",
+    "build": "npm run build --prefix backend && npm run build --prefix frontend",
+    "start": "npm start --prefix backend",
+    "backfill:task-product-versions": "node backfill-task-product-versions.js",
+    "backfill:publ-correction-lists": "node create-publ-correction-lists.js",
+    "merge:publ-deelkaart-correction-lists": "node merge-publ-deelkaart-correction-lists.js",
+    "migrate:enc-version-numbers": "node migrate-enc-version-numbers.js",
+    "migrate:baz2-version-numbers": "node migrate-baz2-version-numbers.js",
+    "migrate:task-product-execution-status": "node add-task-product-execution-status.js",
+    "import:supabase": "node import-to-supabase.js",
+    "import:kml": "node import-kml-coverages.js",
+    "detect-zones": "node detect-zones-for-existing.js"
+  },
+  "dependencies": {
+    "@tmcw/togeojson": "^5.8.1",
+    "@xmldom/xmldom": "^0.8.10",
+    "dotenv": "^16.3.1",
+    "pg": "^8.11.3"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "keywords": [
+    "nautical",
+    "cartography",
+    "task-management"
+  ],
+  "author": "Vlaamse Hydrografie",
+  "license": "UNLICENSED"
+}
