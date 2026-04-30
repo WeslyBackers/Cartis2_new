@@ -6,6 +6,7 @@ import api from '../services/api';
 import { useAuthStore } from '../stores/authStore';
 import { pointInGeometry, parseGeom } from '../utils/mapGeoUtils';
 import { MapContainer, TileLayer, GeoJSON, WMSTileLayer, useMap, useMapEvents, Popup } from 'react-leaflet';
+import { getApiErrorMessage } from '../utils/errorUtils';
 import SunEditor from 'suneditor-react';
 import 'suneditor/dist/css/suneditor.min.css';
 import 'leaflet/dist/leaflet.css';
@@ -475,7 +476,7 @@ export default function TaskDetail() {
     },
     onError: (error: any) => {
       console.error('Error updating product status:', error.response?.data || error.message);
-      alert(`Fout bij updaten productstatus: ${error.response?.data?.error || error.message}`);
+      alert(`Fout bij updaten productstatus: ${getApiErrorMessage(error, 'onbekende fout')}`);
     },
   });
 
@@ -494,7 +495,7 @@ export default function TaskDetail() {
     },
     onError: (error: any) => {
       console.error('Error updating production line status:', error.response?.data || error.message);
-      alert(`Fout bij updaten taakstatus: ${error.response?.data?.error || error.message}`);
+      alert(`Fout bij updaten taakstatus: ${getApiErrorMessage(error, 'onbekende fout')}`);
     },
   });
 
@@ -509,7 +510,7 @@ export default function TaskDetail() {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
     },
     onError: (error: any) => {
-      alert(`Fout bij updaten 'wachten op ZK': ${error.response?.data?.error || error.message}`);
+      alert(`Fout bij updaten 'wachten op ZK': ${getApiErrorMessage(error, 'onbekende fout')}`);
     },
   });
 
@@ -538,7 +539,7 @@ export default function TaskDetail() {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
     },
     onError: (error: any) => {
-      alert(error.response?.data?.error || 'Fout bij toevoegen van product.');
+      alert(getApiErrorMessage(error, 'Fout bij toevoegen van product.'));
     },
   });
 
@@ -553,7 +554,7 @@ export default function TaskDetail() {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
     },
     onError: (error: any) => {
-      alert(error.response?.data?.error || 'Fout bij koppelen van melding aan taak.');
+      alert(getApiErrorMessage(error, 'Fout bij koppelen van melding aan taak.'));
     },
   });
 
@@ -572,7 +573,7 @@ export default function TaskDetail() {
       queryClient.invalidateQueries({ queryKey: ['taskArticles', id] });
     },
     onError: (error: any) => {
-      alert(error.response?.data?.error || 'Fout bij aanmaken artikel.');
+      alert(getApiErrorMessage(error, 'Fout bij aanmaken artikel.'));
     },
   });
 
@@ -590,7 +591,7 @@ export default function TaskDetail() {
       queryClient.invalidateQueries({ queryKey: ['taskArticles', id] });
     },
     onError: (error: any) => {
-      alert(error.response?.data?.error || 'Fout bij bijwerken artikel.');
+      alert(getApiErrorMessage(error, 'Fout bij bijwerken artikel.'));
     },
   });
 
@@ -610,7 +611,7 @@ export default function TaskDetail() {
       const response = await api.post(`/tasks/${id}/articles/translate`, { text: articleContentNl });
       setArticleContentEn(response.data.translatedText);
     } catch (err: any) {
-      alert(err.response?.data?.error || 'Vertaling mislukt.');
+      alert(getApiErrorMessage(err, 'Vertaling mislukt.'));
     } finally {
       setIsTranslating(false);
     }
@@ -661,7 +662,7 @@ export default function TaskDetail() {
           borderRadius: '4px',
           border: '1px solid #f5c6cb'
         }}>
-          <strong>Fout bij laden:</strong> {(error as Error).message}
+          <strong>Fout bij laden:</strong> {getApiErrorMessage(error, 'Onbekende fout')}
         </div>
         <button 
           onClick={() => navigate('/tasks')}

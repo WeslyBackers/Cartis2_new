@@ -14,6 +14,7 @@ import L from 'leaflet';
 import 'leaflet-draw';
 import FileUpload from '../components/FileUpload';
 import CoordinateField, { CoordFormatSelector, CoordFormat, isProjectedFormat, ProjectedCoordinateInput } from '../components/CoordinateInput';
+import { getApiErrorMessage } from '../utils/errorUtils';
 
 // Fix for default marker icon in Leaflet
 import icon from 'leaflet/dist/images/marker-icon.png';
@@ -552,7 +553,7 @@ export default function NotificationDetail() {
     },
     onError: (error: any) => {
       console.error('Error adding comment:', error);
-      alert(`Fout bij toevoegen opmerking: ${error.response?.data?.error || error.message}`);
+      alert(`Fout bij toevoegen opmerking: ${getApiErrorMessage(error, 'onbekende fout')}`);
     },
   });
 
@@ -574,7 +575,7 @@ export default function NotificationDetail() {
     },
     onError: (error: any) => {
       console.error('Error uploading file:', error);
-      alert(`Fout bij uploaden bestand: ${error.response?.data?.error || error.message}`);
+      alert(`Fout bij uploaden bestand: ${getApiErrorMessage(error, 'onbekende fout')}`);
     },
   });
 
@@ -589,7 +590,7 @@ export default function NotificationDetail() {
     },
     onError: (error: any) => {
       console.error('Error deleting attachment:', error);
-      alert(`Fout bij verwijderen bijlage: ${error.response?.data?.error || error.message}`);
+      alert(`Fout bij verwijderen bijlage: ${getApiErrorMessage(error, 'onbekende fout')}`);
     },
   });
 
@@ -615,7 +616,7 @@ export default function NotificationDetail() {
     },
     onError: (error: any) => {
       console.error('Error updating opmerkingen:', error);
-      alert(`Fout bij opslaan opmerkingen: ${error.response?.data?.error || error.message}`);
+      alert(`Fout bij opslaan opmerkingen: ${getApiErrorMessage(error, 'onbekende fout')}`);
     },
   });
 
@@ -656,7 +657,7 @@ export default function NotificationDetail() {
     },
     onError: (error: any) => {
       console.error('Error linking product:', error);
-      alert(`Fout bij koppelen product: ${error.response?.data?.error || error.message}`);
+      alert(`Fout bij koppelen product: ${getApiErrorMessage(error, 'onbekende fout')}`);
     },
   });
 
@@ -673,7 +674,7 @@ export default function NotificationDetail() {
     },
     onError: (error: any) => {
       console.error('Error detecting products:', error);
-      alert(`Fout bij herberekenen producten: ${error.response?.data?.error || error.message}`);
+      alert(`Fout bij herberekenen producten: ${getApiErrorMessage(error, 'onbekende fout')}`);
     },
   });
 
@@ -688,7 +689,7 @@ export default function NotificationDetail() {
     },
     onError: (error: any) => {
       console.error('Error unlinking product:', error);
-      alert(`Fout bij ontkoppelen product: ${error.response?.data?.error || error.message}`);
+      alert(`Fout bij ontkoppelen product: ${getApiErrorMessage(error, 'onbekende fout')}`);
     },
   });
 

@@ -6,6 +6,7 @@ import { useAuthStore } from '../stores/authStore';
 import SunEditor from 'suneditor-react';
 import 'suneditor/dist/css/suneditor.min.css';
 import { format } from 'date-fns';
+import { getApiErrorMessage } from '../utils/errorUtils';
 
 type NotePriority = 'laag' | 'gemiddeld' | 'hoog';
 type NoteSortMode = 'newest' | 'oldest' | 'priority_desc' | 'priority_asc';
@@ -247,7 +248,7 @@ export default function Dashboard() {
         await createNoteMutation.mutateAsync();
       }
     } catch (error: any) {
-      alert(`Fout bij opslaan van nota: ${error.response?.data?.error || error.message}`);
+      alert(`Fout bij opslaan van nota: ${getApiErrorMessage(error, 'onbekende fout')}`);
     }
   };
 
@@ -258,7 +259,7 @@ export default function Dashboard() {
     try {
       await deleteNoteMutation.mutateAsync(noteId);
     } catch (error: any) {
-      alert(`Fout bij verwijderen van nota: ${error.response?.data?.error || error.message}`);
+      alert(`Fout bij verwijderen van nota: ${getApiErrorMessage(error, 'onbekende fout')}`);
     }
   };
 
@@ -280,7 +281,7 @@ export default function Dashboard() {
         visible,
       });
     } catch (error: any) {
-      alert(`Fout bij aanpassen van zichtbaarheid: ${error.response?.data?.error || error.message}`);
+      alert(`Fout bij aanpassen van zichtbaarheid: ${getApiErrorMessage(error, 'onbekende fout')}`);
     }
   };
 

@@ -10,6 +10,7 @@ import { useAuthStore } from '../stores/authStore';
 import api from '../services/api';
 import { useTableSort } from '../hooks/useTableSort';
 import { format } from 'date-fns';
+import { getApiErrorMessage } from '../utils/errorUtils';
 
 const getStatusStyles = (status: string) => ({
   background:
@@ -216,7 +217,7 @@ export default function Tasks() {
     },
     onError: (error: any) => {
       console.error('Error updating production line status:', error.response?.data || error.message);
-      alert(`Fout bij updaten taakstatus: ${error.response?.data?.error || error.message}`);
+      alert(`Fout bij updaten taakstatus: ${getApiErrorMessage(error, 'onbekende fout')}`);
     },
   });
 
@@ -233,7 +234,7 @@ export default function Tasks() {
     },
     onError: (error: any) => {
       console.error('Error updating product status:', error.response?.data || error.message);
-      alert(`Fout bij updaten productstatus: ${error.response?.data?.error || error.message}`);
+      alert(`Fout bij updaten productstatus: ${getApiErrorMessage(error, 'onbekende fout')}`);
     },
   });
 
@@ -387,7 +388,7 @@ export default function Tasks() {
       queryClient.invalidateQueries({ queryKey: ['task', expandedId] });
     },
     onError: (error: any) => {
-      alert(`Fout bij updaten 'wachten op ZK': ${error.response?.data?.error || error.message}`);
+      alert(`Fout bij updaten 'wachten op ZK': ${getApiErrorMessage(error, 'onbekende fout')}`);
     },
   });
 

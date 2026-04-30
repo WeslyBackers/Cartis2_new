@@ -15,6 +15,7 @@ import { useTableSort } from '../hooks/useTableSort';
 import FileUpload from '../components/FileUpload';
 import CoordinateField, { CoordFormatSelector, CoordFormat, isProjectedFormat, ProjectedCoordinateInput } from '../components/CoordinateInput';
 import PostalMime from 'postal-mime';
+import { getApiErrorMessage } from '../utils/errorUtils';
 
 type ProductionLine = {
   id: number;
@@ -823,7 +824,7 @@ export default function Notifications() {
     },
     onError: (error: any) => {
       console.error('Bulk decision with task error:', error);
-      alert(`Fout bij verwerken beslissingen: ${error.response?.data?.error || error.message}`);
+      alert(`Fout bij verwerken beslissingen: ${getApiErrorMessage(error, 'onbekende fout')}`);
     },
   });
 
@@ -878,7 +879,7 @@ export default function Notifications() {
     },
     onError: (error: any) => {
       console.error('Error creating notification:', error);
-      alert(`Fout bij aanmaken melding: ${error.response?.data?.error || error.message}`);
+      alert(`Fout bij aanmaken melding: ${getApiErrorMessage(error, 'onbekende fout')}`);
     },
   });
 

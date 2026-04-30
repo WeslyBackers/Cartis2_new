@@ -5,6 +5,7 @@ import api from '../services/api';
 import { format } from 'date-fns';
 import { useAuthStore } from '../stores/authStore';
 import { openCorrectionListPrintPreview } from '../utils/printUtils';
+import { getApiErrorMessage } from '../utils/errorUtils';
 
 const getTaskStatusLabel = (status: string) => {
   if (status === 'hoog_te_verwerken') return 'Hoog te verwerken';
@@ -145,7 +146,7 @@ export default function ProductVersions() {
       setNewEditionOnPublish(false);
     },
     onError: (error: any) => {
-      alert(error.response?.data?.error || 'Publiceren van productversie mislukt');
+      alert(getApiErrorMessage(error, 'Publiceren van productversie mislukt'));
     },
   });
 
@@ -159,7 +160,7 @@ export default function ProductVersions() {
       queryClient.invalidateQueries({ queryKey: ['productVersionDetail', selectedVersionId] });
     },
     onError: (error: any) => {
-      alert(error.response?.data?.error || 'Bijwerken uitvoeringstatus mislukt');
+      alert(getApiErrorMessage(error, 'Bijwerken uitvoeringstatus mislukt'));
     },
   });
 
@@ -204,7 +205,7 @@ export default function ProductVersions() {
       setCreateNotes('');
     },
     onError: (error: any) => {
-      alert(error.response?.data?.error || error.message || 'Aanmaken productversie mislukt');
+      alert(getApiErrorMessage(error, 'Aanmaken productversie mislukt'));
     },
   });
 
@@ -230,7 +231,7 @@ export default function ProductVersions() {
       queryClient.invalidateQueries({ queryKey: ['productVersionAttachments', selectedVersionId] });
     },
     onError: (error: any) => {
-      alert(error.response?.data?.error || 'Upload van bijlage mislukt');
+      alert(getApiErrorMessage(error, 'Upload van bijlage mislukt'));
     },
   });
 
@@ -357,7 +358,7 @@ export default function ProductVersions() {
       link.remove();
       window.URL.revokeObjectURL(url);
     } catch (error: any) {
-      alert(error.response?.data?.error || 'Download van bijlage mislukt');
+      alert(getApiErrorMessage(error, 'Download van bijlage mislukt'));
     }
   };
 

@@ -2,31 +2,8 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import api from '../services/api';
+import { getApiErrorMessage } from '../utils/errorUtils';
 import './Login.css';
-
-function getErrorMessage(err: any): string {
-  const apiError = err?.response?.data?.error;
-
-  if (typeof apiError === 'string') {
-    return apiError;
-  }
-
-  if (apiError && typeof apiError === 'object') {
-    if (typeof apiError.message === 'string') {
-      return apiError.message;
-    }
-
-    if (typeof apiError.code === 'string') {
-      return `Login mislukt (${apiError.code})`;
-    }
-  }
-
-  if (typeof err?.message === 'string' && err.message.trim()) {
-    return err.message;
-  }
-
-  return 'Login mislukt';
-}
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -46,7 +23,7 @@ export default function Login() {
       setAuth(response.data.token, response.data.user);
       navigate('/');
     } catch (err: any) {
-      setError(getErrorMessage(err));
+      setError(getApiErrorMessage(err, 'Login mislukt'));
     } finally {
       setLoading(false);
     }
