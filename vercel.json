@@ -5,7 +5,7 @@
   "installCommand": "npm install",
   "builds": [
     {
-      "src": "backend/src/index.ts",
+      "src": "backend/package.json",
       "use": "@vercel/node",
       "config": {
         "maxLambdaSize": "50mb",
@@ -13,7 +13,7 @@
       }
     },
     {
-      "src": "frontend/vite.config.ts",
+      "src": "frontend/package.json",
       "use": "@vercel/static-build",
       "config": {
         "distDir": "frontend/dist"
@@ -23,11 +23,11 @@
   "routes": [
     {
       "src": "/api/(.*)",
-      "dest": "backend/src/index.ts"
+      "dest": "backend/dist/index.js"
     },
     {
       "src": "/uploads/(.*)",
-      "dest": "backend/src/index.ts"
+      "dest": "backend/dist/index.js"
     },
     {
       "src": "/(.*)",
