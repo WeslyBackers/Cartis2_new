@@ -183,10 +183,35 @@ const formatEmailSourceDetail = (name?: string | null, address?: string | null):
   return cleanName || cleanAddress;
 };
 
-const htmlToText = (value: string): string => {
-  const temp = document.createElement('div');
-  temp.innerHTML = value;
-  return (temp.textContent || temp.innerText || '').trim();
+const sanitizeImportedEmailHtml = (html: string): string => {
+  if (!html) return '';
+
+  return String(html)
+    .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, '')
+    .replace(/<(iframe|object|embed)[\s\S]*?>[\s\S]*?<\/\1>/gi, '')
+    .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
+    .replace(/\s(href|src)\s*=\s*("|')\s*javascript:[^"']*("|')/gi, '');
+};
+
+const escapeHtml = (value: string): string =>
+  String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+const plainTextToHtml = (value: string): string => {
+  const trimmed = String(value || '').trim();
+  if (!trimmed) return '';
+
+  const paragraphs = trimmed.split(/\r?\n\s*\r?\n/).map((part) => part.trim()).filter(Boolean);
+  if (paragraphs.length === 0) return '';
+
+  return paragraphs
+    .map((paragraph) => `<p>${escapeHtml(paragraph).replace(/\r?\n/g, '<br>')}</p>`)
+    .join('');
 };
 
 const extractRenderableGeometries = (geojson: any): any[] => {
@@ -1046,7 +1071,11 @@ export default function Notifications() {
 
     const from = formatEmailSourceDetail(parsed.from?.name, parsed.from?.address);
     const subject = String(parsed.subject || '').trim();
-    const content = parsed.html ? htmlToText(String(parsed.html)) : String(parsed.text || '').trim();
+    const htmlContent = String(parsed.html || '').trim();
+    const textContent = String(parsed.text || '').trim();
+    const content = htmlContent
+      ? sanitizeImportedEmailHtml(htmlContent)
+      : plainTextToHtml(textContent);
 
     const attachments = (parsed.attachments || [])
       .map((attachment: any, index: number) => {
@@ -1070,8 +1099,11 @@ export default function Notifications() {
     const fileData = msgReader.getFileData();
     const from = formatEmailSourceDetail(fileData.senderName, fileData.senderEmail);
     const subject = String(fileData.subject || '').trim();
-    const bodyText = String(fileData.bodyHTML || fileData.body || '').trim();
-    const content = fileData.bodyHTML ? htmlToText(bodyText) : bodyText;
+    const htmlContent = String(fileData.bodyHTML || '').trim();
+    const textContent = String(fileData.body || '').trim();
+    const content = htmlContent
+      ? sanitizeImportedEmailHtml(htmlContent)
+      : plainTextToHtml(textContent);
 
     const attachmentsMeta = Array.isArray(fileData.attachments) ? fileData.attachments : [];
     const attachments: File[] = [];
