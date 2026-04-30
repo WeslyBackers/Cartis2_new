@@ -203,8 +203,8 @@ router.get('/lead-times', authenticate, async (req: AuthRequest, res) => {
         pv.publication_date,
         tp.completed_at,
         ROUND(EXTRACT(EPOCH FROM (tp.completed_at - n.received_date)) / 86400.0, 1) AS notice_to_task_days,
-        ROUND(EXTRACT(EPOCH FROM ((pv.publication_date::timestamp) - tp.completed_at)) / 86400.0, 1) AS task_to_publication_days,
-        ROUND(EXTRACT(EPOCH FROM ((pv.publication_date::timestamp) - n.received_date)) / 86400.0, 1) AS total_days,
+        (pv.publication_date - tp.completed_at::date) AS task_to_publication_days,
+        (pv.publication_date - n.received_date::date) AS total_days,
         pl.id AS production_line_id,
         pl.code AS production_line_code,
         pl.name AS production_line_name

@@ -8,7 +8,7 @@ import './Layout.css';
 export default function Layout() {
   const navigate = useNavigate();
   const { user, currentProductionLineId, setCurrentProductionLine, logout } = useAuthStore();
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
 
   const { data: productionLines } = useQuery({
     queryKey: ['productionLines'],
@@ -93,6 +93,7 @@ export default function Layout() {
             <span className="nav-icon">📚</span>
             {!isSidebarCollapsed && <span className="nav-text">Gepubliceerde versies</span>}
           </NavLink>
+          <div className="nav-divider" />
           <NavLink to="/products" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} title="Producten">
             <span className="nav-icon">📦</span>
             {!isSidebarCollapsed && <span className="nav-text">Producten</span>}

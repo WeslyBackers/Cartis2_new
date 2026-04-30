@@ -180,6 +180,12 @@
   display: none;
 }
 
+.nav-divider {
+  height: 1px;
+  background-color: var(--color-border);
+  margin: 0.5rem 0.75rem;
+}
+
 .nav-link:hover {
   background-color: var(--color-bg);
   color: var(--color-text);
