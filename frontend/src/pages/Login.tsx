@@ -4,6 +4,30 @@ import { useAuthStore } from '../stores/authStore';
 import api from '../services/api';
 import './Login.css';
 
+function getErrorMessage(err: any): string {
+  const apiError = err?.response?.data?.error;
+
+  if (typeof apiError === 'string') {
+    return apiError;
+  }
+
+  if (apiError && typeof apiError === 'object') {
+    if (typeof apiError.message === 'string') {
+      return apiError.message;
+    }
+
+    if (typeof apiError.code === 'string') {
+      return `Login mislukt (${apiError.code})`;
+    }
+  }
+
+  if (typeof err?.message === 'string' && err.message.trim()) {
+    return err.message;
+  }
+
+  return 'Login mislukt';
+}
+
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -22,7 +46,7 @@ export default function Login() {
       setAuth(response.data.token, response.data.user);
       navigate('/');
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Login mislukt');
+      setError(getErrorMessage(err));
     } finally {
       setLoading(false);
     }
