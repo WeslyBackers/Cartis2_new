@@ -40,6 +40,30 @@ const isCorrectionListProduct = (productCode: string | null | undefined, product
   return rawCode.startsWith('VL-') || normalizedCode.includes('verbeterlijst') || normalizedName.includes('verbeterlijst');
 };
 
+const INTEGRATED_CORRECTION_LIST_CODES = new Set([
+  'VL-BG',
+  'VL-BL',
+  'VL-BNZ',
+  'VL-D11',
+  'VL-NP',
+  'VL-OS',
+  'VL-ZB_AH',
+  'VL-ZB_VH',
+  'VL-ZB-VH',
+]);
+
+const isIntegratedCorrectionListCode = (code: string | null | undefined): boolean => {
+  const normalized = String(code || '').trim().toUpperCase().replace(/[_-]/g, '');
+
+  for (const candidate of INTEGRATED_CORRECTION_LIST_CODES) {
+    if (candidate.replace(/[_-]/g, '') === normalized) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
 export default function PublishedProductVersions() {
   const [selectedVersionId, setSelectedVersionId] = useState<number | null>(null);
   const [previewArticle, setPreviewArticle] = useState<any | null>(null);
@@ -117,6 +141,8 @@ export default function PublishedProductVersions() {
       source.toLowerCase().includes(filter.toLowerCase());
 
     return (versions || []).filter((version: any) => {
+      if (isIntegratedCorrectionListCode(version.product_code)) return false;
+
       const productText = `${version.product_code || ''} ${version.product_name || ''}`.trim();
       if (colFilterProduct && !includesText(productText, colFilterProduct)) return false;
 
@@ -272,7 +298,7 @@ export default function PublishedProductVersions() {
             <div style={{ marginBottom: '1.25rem', padding: '1rem', backgroundColor: '#f8fbff', borderRadius: '8px', border: '1px solid #d8e5f2' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
                 <div>
-                  <h2 style={{ margin: 0, color: '#16324f' }}>Verbeterlijst preview</h2>
+                  <h2 style={{ margin: 0, color: '#16324f' }}>{correctionListLanguage === 'en' ? 'List of Corrections preview' : 'Verbeterlijst preview'}</h2>
                   <div style={{ color: '#516173', fontSize: '0.9rem', marginTop: '0.2rem' }}>
                     Gepubliceerde lijst met actieve BaZ-nrs. en artikeloverzicht.
                   </div>
@@ -298,7 +324,7 @@ export default function PublishedProductVersions() {
               </div>
 
               {isLoadingCorrectionListPreview ? (
-                <p className="loading-text">Verbeterlijst laden...</p>
+                <p className="loading-text">{correctionListLanguage === 'en' ? 'Loading List of Corrections...' : 'Verbeterlijst laden...'}</p>
               ) : correctionListPreview ? (
                 <>
                   <div style={{ marginBottom: '0.75rem', color: '#516173', fontSize: '0.9rem' }}>
@@ -310,7 +336,7 @@ export default function PublishedProductVersions() {
                       className="action-btn action-btn--primary"
                       onClick={() =>
                         openCorrectionListPrintPreview({
-                          title: String(correctionListPreview.productName || selectedVersion?.product_name || 'Verbeterlijst'),
+                          title: String(correctionListPreview.productName || selectedVersion?.product_name || (correctionListLanguage === 'en' ? 'List of Corrections' : 'Verbeterlijst')),
                           html: String(correctionListPreview[correctionListLanguage]?.html || ''),
                           language: correctionListLanguage,
                         })
@@ -326,7 +352,7 @@ export default function PublishedProductVersions() {
                   />
                 </>
               ) : (
-                <p style={{ margin: 0, color: '#6c757d' }}>Geen verbeterlijstpreview beschikbaar.</p>
+                <p style={{ margin: 0, color: '#6c757d' }}>{correctionListLanguage === 'en' ? 'No List of Corrections preview available.' : 'Geen verbeterlijstpreview beschikbaar.'}</p>
               )}
             </div>
           )}

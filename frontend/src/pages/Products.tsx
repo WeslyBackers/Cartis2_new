@@ -20,6 +20,30 @@ const getProductObjnam = (product: any): string => {
   return product.name || product.code;
 };
 
+const INTEGRATED_CORRECTION_LIST_CODES = new Set([
+  'VL-BG',
+  'VL-BL',
+  'VL-BNZ',
+  'VL-D11',
+  'VL-NP',
+  'VL-OS',
+  'VL-ZB_AH',
+  'VL-ZB_VH',
+  'VL-ZB-VH',
+]);
+
+const isIntegratedCorrectionListCode = (code: string | null | undefined): boolean => {
+  const normalized = String(code || '').trim().toUpperCase().replace(/[_-]/g, '');
+
+  for (const candidate of INTEGRATED_CORRECTION_LIST_CODES) {
+    if (candidate.replace(/[_-]/g, '') === normalized) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
 // Helper function to extract file category from product
 // Groups products by their usage level (e.g., "ENC U3", "ENC U4", "IENC", "Pilot ENC U5")
 const getProductFileCategory = (product: any): string => {
@@ -152,10 +176,12 @@ export default function Products() {
     },
   });
 
-  const { sortedData, handleSort, getSortIcon } = useTableSort(products);
+  const visibleProducts = (products || []).filter((product: any) => !isIntegratedCorrectionListCode(product?.code));
+
+  const { sortedData, handleSort, getSortIcon } = useTableSort(visibleProducts);
 
   // Filter products with valid geometry for map view
-  const productsWithGeometry = products?.filter((p: any) => p.geometry) || [];
+  const productsWithGeometry = visibleProducts.filter((p: any) => p.geometry);
 
   // Group products by file category
   const fileCategories: string[] = Array.from(

@@ -70,6 +70,30 @@ const isPublCorrectionListProduct = (product: any): boolean => {
   );
 };
 
+const INTEGRATED_CORRECTION_LIST_CODES = new Set([
+  'VL-BG',
+  'VL-BL',
+  'VL-BNZ',
+  'VL-D11',
+  'VL-NP',
+  'VL-OS',
+  'VL-ZB_AH',
+  'VL-ZB_VH',
+  'VL-ZB-VH',
+]);
+
+const isIntegratedCorrectionListCode = (code: string): boolean => {
+  const normalized = String(code || '').trim().toUpperCase().replace(/[_-]/g, '');
+
+  for (const candidate of INTEGRATED_CORRECTION_LIST_CODES) {
+    if (candidate.replace(/[_-]/g, '') === normalized) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
 const VL101_ALIAS_CODES = new Set(['VL-BL', 'VL-ZB_AH', 'VL-ZB-VH']);
 const VL102_ALIAS_CODES = new Set(['VL-NP', 'VL_OS']);
 
@@ -88,6 +112,10 @@ const coalescePublCorrectionListProducts = (products: any[] = []) => {
   const byCode = new Map<string, any>();
 
   for (const product of products) {
+    if (isIntegratedCorrectionListCode(product?.code)) {
+      continue;
+    }
+
     const normalizedCode = normalizePublCorrectionListCode(product?.code);
     const existing = byCode.get(normalizedCode);
 

@@ -49,6 +49,30 @@ const sanitizeHtmlForDisplay = (html: string): string => {
     .replace(/\s(href|src)\s*=\s*("|')\s*javascript:[^"']*("|')/gi, '');
 };
 
+const INTEGRATED_CORRECTION_LIST_CODES = new Set([
+  'VL-BG',
+  'VL-BL',
+  'VL-BNZ',
+  'VL-D11',
+  'VL-NP',
+  'VL-OS',
+  'VL-ZB_AH',
+  'VL-ZB_VH',
+  'VL-ZB-VH',
+]);
+
+const isIntegratedCorrectionListCode = (code: string): boolean => {
+  const normalized = String(code || '').trim().toUpperCase().replace(/[_-]/g, '');
+
+  for (const candidate of INTEGRATED_CORRECTION_LIST_CODES) {
+    if (candidate.replace(/[_-]/g, '') === normalized) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
 // Helper function to collect all geometries
 const collectAllGeometries = (notification: any, coordinates: any[]) => {
   const features: any[] = [];
@@ -1168,7 +1192,10 @@ export default function NotificationDetail() {
                 Gekoppelde Producten
                 {notification.products && (() => {
                   const count = notification.products.filter(
-                    (p: any) => currentProductionLineId ? p.production_line_id === currentProductionLineId : true
+                    (p: any) => {
+                      if (isIntegratedCorrectionListCode(p?.code)) return false;
+                      return currentProductionLineId ? p.production_line_id === currentProductionLineId : true;
+                    }
                   ).length;
                   return count > 0 ? (
                     <span style={{ fontSize: '0.85rem', fontWeight: 'normal', backgroundColor: '#0066cc', color: 'white', padding: '0.25rem 0.75rem', borderRadius: '12px', marginLeft: '0.5rem' }}>
@@ -1233,6 +1260,7 @@ export default function NotificationDetail() {
                   {(() => {
                     const linkedProductIds = new Set((notification.products || []).map((p: any) => p.id));
                     const filtered = (availableProducts || []).filter((p: any) => {
+                      if (isIntegratedCorrectionListCode(p?.code)) return false;
                       if (linkedProductIds.has(p.id)) return false;
                       if (!productSearchQuery) return true;
                       const q = productSearchQuery.toLowerCase();
@@ -1291,7 +1319,10 @@ export default function NotificationDetail() {
             {/* Linked products list */}
             {(() => {
               const filteredProducts = (notification.products || []).filter(
-                (p: any) => currentProductionLineId ? p.production_line_id === currentProductionLineId : true
+                (p: any) => {
+                  if (isIntegratedCorrectionListCode(p?.code)) return false;
+                  return currentProductionLineId ? p.production_line_id === currentProductionLineId : true;
+                }
               );
               return filteredProducts.length > 0 ? (
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>

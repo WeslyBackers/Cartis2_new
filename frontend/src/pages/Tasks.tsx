@@ -95,6 +95,30 @@ const buildTaskInfoRequestDraft = (task: any) => {
   };
 };
 
+const INTEGRATED_CORRECTION_LIST_CODES = new Set([
+  'VL-BG',
+  'VL-BL',
+  'VL-BNZ',
+  'VL-D11',
+  'VL-NP',
+  'VL-OS',
+  'VL-ZB_AH',
+  'VL-ZB_VH',
+  'VL-ZB-VH',
+]);
+
+const isIntegratedCorrectionListCode = (code: string | null | undefined): boolean => {
+  const normalized = String(code || '').trim().toUpperCase().replace(/[_-]/g, '');
+
+  for (const candidate of INTEGRATED_CORRECTION_LIST_CODES) {
+    if (candidate.replace(/[_-]/g, '') === normalized) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
 export default function Tasks() {
   const currentProductionLineId = useAuthStore((state) => state.currentProductionLineId);
   const queryClient = useQueryClient();
@@ -394,7 +418,7 @@ export default function Tasks() {
 
   const filteredExpandedTaskProducts = currentProductionLineId
     ? (expandedTask?.task_products || []).filter(
-        (tp: any) => tp.product_production_line_id === currentProductionLineId
+        (tp: any) => tp.product_production_line_id === currentProductionLineId && !isIntegratedCorrectionListCode(tp.product_code)
       )
     : [];
   const infoRequestDraft = expandedTask ? buildTaskInfoRequestDraft(expandedTask) : null;
@@ -600,7 +624,9 @@ export default function Tasks() {
                           <tbody>
               {filteredData?.map((task: any) => {
                 const isExpanded = expandedId === task.id;
-                const taskProducts = Array.isArray(task.products) ? task.products : [];
+                const taskProducts = Array.isArray(task.products)
+                  ? task.products.filter((p: any) => !isIntegratedCorrectionListCode(p.productCode || p.code))
+                  : [];
                 
                 return (
                   <>
@@ -1106,13 +1132,13 @@ title={a.is_temporary ? 'Tijdelijk artikel' : 'Artikel'}
                                         </div>
                                       </div>
 
-                                      {notification.products && notification.products.length > 0 && (
+                                      {notification.products && notification.products.filter((p: any) => !isIntegratedCorrectionListCode(p.code)).length > 0 && (
                                         <div style={{ marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid #dee2e6' }}>
                                           <div style={{ fontSize: '0.85rem', color: '#6c757d', marginBottom: '0.5rem' }}>
                                             Gekoppelde producten:
                                           </div>
                                           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem' }}>
-                                            {notification.products.map((p: any) => (
+                                            {notification.products.filter((p: any) => !isIntegratedCorrectionListCode(p.code)).map((p: any) => (
                                               <span
                                                 key={p.id}
                                                 style={{

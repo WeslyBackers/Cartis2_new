@@ -126,6 +126,30 @@ const buildTaskInfoRequestDraft = (task: any) => {
   };
 };
 
+const INTEGRATED_CORRECTION_LIST_CODES = new Set([
+  'VL-BG',
+  'VL-BL',
+  'VL-BNZ',
+  'VL-D11',
+  'VL-NP',
+  'VL-OS',
+  'VL-ZB_AH',
+  'VL-ZB_VH',
+  'VL-ZB-VH',
+]);
+
+const isIntegratedCorrectionListCode = (code: string | null | undefined): boolean => {
+  const normalized = String(code || '').trim().toUpperCase().replace(/[_-]/g, '');
+
+  for (const candidate of INTEGRATED_CORRECTION_LIST_CODES) {
+    if (candidate.replace(/[_-]/g, '') === normalized) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
 // Helper function to get product color based on type
 const getProductColor = (product: any): string => {
   const type = product.product_type || product.type; // Handle both task products and notification products
@@ -735,7 +759,7 @@ export default function TaskDetail() {
   )?.status || 'under_construction';
 
   const productsForSelectedAddLine = task.task_products?.filter(
-    (prod: any) => prod.product_production_line_id === selectedProductLineId
+    (prod: any) => prod.product_production_line_id === selectedProductLineId && !isIntegratedCorrectionListCode(prod.product_code)
   ) || [];
 
   const selectedAddLine = productionLines?.find((line: any) => line.id === selectedProductLineId);
@@ -750,7 +774,7 @@ export default function TaskDetail() {
   const canAddProductsForLine = !!selectedProductLineId && selectedAddProductionLineStatus !== 'completed';
   const linkedTaskProductIds = new Set(productsForSelectedAddLine.map((prod: any) => Number(prod.product_id)));
   const unlinkedProducts = (availableProducts || []).filter(
-    (prod: any) => !linkedTaskProductIds.has(Number(prod.id))
+    (prod: any) => !linkedTaskProductIds.has(Number(prod.id)) && !isIntegratedCorrectionListCode(prod.code)
   );
   const infoRequestDraft = buildTaskInfoRequestDraft(task);
 
@@ -810,6 +834,7 @@ export default function TaskDetail() {
   // Filter products for map based on selected production lines (and type when ZK)
   const mapFilteredProducts = task.task_products?.filter(
     (prod: any) => selectedMapProductionLines.includes(prod.product_production_line_id)
+      && !isIntegratedCorrectionListCode(prod.product_code || prod.code)
       && (!isZK || selectedMapProductTypes.includes(prod.product_type || prod.type || ''))
   ) || [];
 
@@ -892,6 +917,7 @@ export default function TaskDetail() {
       (notif.products || [])
         .filter((prod: any) =>
           selectedMapProductionLines.includes(prod.production_line_id) &&
+          !isIntegratedCorrectionListCode(prod.code) &&
           (!isZK || selectedMapProductTypes.includes(prod.product_type || prod.type || '')) &&
           prod.geometry
         )
@@ -912,6 +938,7 @@ export default function TaskDetail() {
       ? allMapProducts
           .filter((p: any) =>
             selectedMapProductionLines.includes(p.production_line_id) &&
+            !isIntegratedCorrectionListCode(p.code) &&
             (!isZK || selectedMapProductTypes.includes(p.type || '')) &&
             p.geometry
           )
@@ -1491,13 +1518,13 @@ export default function TaskDetail() {
                       Bron: {notification.source_detail || notification.source}
                     </div>
 
-                    {notification.products && notification.products.length > 0 && (
+                    {notification.products && notification.products.filter((p: any) => !isIntegratedCorrectionListCode(p.code)).length > 0 && (
                       <div style={{ marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid #dee2e6' }}>
                         <div style={{ fontSize: '0.85rem', color: '#6c757d', marginBottom: '0.5rem' }}>
                           Gekoppelde producten:
                         </div>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem' }}>
-                          {notification.products.map((p: any) => (
+                          {notification.products.filter((p: any) => !isIntegratedCorrectionListCode(p.code)).map((p: any) => (
                             <span
                               key={p.id}
                               style={{
@@ -2298,12 +2325,12 @@ export default function TaskDetail() {
                 {productionLines.map((pl: any) => {
                   // Count task products for this production line
                   const taskProductCount = task.task_products?.filter(
-                    (prod: any) => prod.product_production_line_id === pl.id
+                    (prod: any) => prod.product_production_line_id === pl.id && !isIntegratedCorrectionListCode(prod.product_code)
                   ).length || 0;
                   
                   // Count notification products for this production line
                   const notificationProductCount = task.notifications?.reduce((count: number, notif: any) => {
-                    return count + (notif.products?.filter((prod: any) => prod.production_line_id === pl.id).length || 0);
+                    return count + (notif.products?.filter((prod: any) => prod.production_line_id === pl.id && !isIntegratedCorrectionListCode(prod.code)).length || 0);
                   }, 0) || 0;
                   
                   const totalProductCount = taskProductCount + notificationProductCount;
@@ -2589,6 +2616,7 @@ export default function TaskDetail() {
               {task.notifications?.map((notif: any) => 
                 notif.products
                   ?.filter((prod: any) => selectedMapProductionLines.includes(prod.production_line_id)
+                    && !isIntegratedCorrectionListCode(prod.code)
                     && (!isZK || selectedMapProductTypes.includes(prod.product_type || prod.type || '')))
                   .map((prod: any) => {
                   const geom = parseGeom(prod.geometry);
@@ -2615,6 +2643,7 @@ export default function TaskDetail() {
               {/* All available products overlay for adding from map */}
               {showAllProductsOnMap && allMapProducts && allMapProducts
                 .filter((product: any) => selectedMapProductionLines.includes(product.production_line_id)
+                  && !isIntegratedCorrectionListCode(product.code)
                   && (!isZK || selectedMapProductTypes.includes(product.type || '')))
                 .map((product: any) => {
                   if (!product.geometry) return null;

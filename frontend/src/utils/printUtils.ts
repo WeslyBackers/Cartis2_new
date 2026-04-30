@@ -39,7 +39,7 @@ export function openCorrectionListPrintPreview(options: PrintCorrectionListOptio
   <style>
     @page {
       size: A4 portrait;
-      margin: 0.5cm;
+      margin: 0cm;
     }
 
     html, body {
@@ -54,6 +54,58 @@ export function openCorrectionListPrintPreview(options: PrintCorrectionListOptio
       font-family: Arial, sans-serif;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
+    }
+
+    .sheet * {
+      box-sizing: border-box;
+    }
+
+    .sheet ul,
+    .sheet ol {
+      margin: 0.75rem 0;
+      padding-left: 1.5rem;
+    }
+
+    .sheet ul {
+      list-style: disc;
+    }
+
+    .sheet ol {
+      list-style: decimal;
+    }
+
+    .sheet li {
+      margin: 0.2rem 0;
+    }
+
+    .sheet table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 0.75rem 0;
+      table-layout: auto;
+    }
+
+    .sheet th,
+    .sheet td {
+      border: 1px solid #000;
+      padding: 0.35rem 0.45rem;
+      vertical-align: top;
+      word-break: break-word;
+    }
+
+    .sheet img {
+      max-width: 100%;
+      height: auto;
+      page-break-inside: avoid;
+    }
+
+    .sheet figure {
+      margin: 0.75rem 0;
+    }
+
+    .sheet figcaption {
+      font-size: 0.9em;
+      color: #333;
     }
 
     .sheet {
@@ -88,8 +140,35 @@ export function openCorrectionListPrintPreview(options: PrintCorrectionListOptio
         }
       };
 
+      const waitForImages = function () {
+        const images = Array.from(document.images || []);
+
+        if (!images.length) {
+          return Promise.resolve();
+        }
+
+        return Promise.all(
+          images.map(function (img) {
+            if (img.complete) {
+              return Promise.resolve();
+            }
+
+            return new Promise(function (resolve) {
+              const done = function () {
+                resolve();
+              };
+
+              img.addEventListener('load', done, { once: true });
+              img.addEventListener('error', done, { once: true });
+            });
+          })
+        );
+      };
+
       window.addEventListener('load', function () {
-        setTimeout(triggerPrint, 150);
+        waitForImages().finally(function () {
+          setTimeout(triggerPrint, 150);
+        });
       });
     })();
   </script>
