@@ -2,7 +2,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { MapContainer, TileLayer, Marker, Popup, GeoJSON, useMap, useMapEvents, WMSTileLayer } from 'react-leaflet';
 import { format } from 'date-fns';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import SunEditor from 'suneditor-react';
 import 'suneditor/dist/css/suneditor.min.css';
 import { useAuthStore } from '../stores/authStore';
@@ -462,6 +462,14 @@ interface NotifMapHitItem {
   rawProduct: any;
 }
 
+interface ZoneMapHitItem {
+  id: number;
+  code: string;
+  name: string;
+  detectionMethod?: 'automatic' | 'manual' | null;
+  geometry: any; // parsed
+}
+
 function MapNotifMultiClickHandler({ items, onHit }: {
   items: NotifMapHitItem[];
   onHit: (result: { latlng: L.LatLng; items: NotifMapHitItem[] } | null) => void;
@@ -476,6 +484,32 @@ function MapNotifMultiClickHandler({ items, onHit }: {
       onHit(hits.length > 0 ? { latlng: e.latlng, items: hits } : null);
     },
   });
+  return null;
+}
+
+function MapZoneMultiClickHandler({ items, onHit }: {
+  items: ZoneMapHitItem[];
+  onHit: (result: { latlng: L.LatLng; items: ZoneMapHitItem[] } | null) => void;
+}) {
+  const map = useMapEvents({
+    click(e) {
+      const { lng, lat } = e.latlng;
+      const hits = items.filter((item) => {
+        if (!item.geometry) return false;
+        return pointInGeometry(lng, lat, item.geometry, map, e.containerPoint);
+      });
+
+      if (hits.length === 0) {
+        onHit(null);
+        return;
+      }
+
+      // Deduplicate by zone id because one zone can contain multiple geometries.
+      const uniqueByZoneId = Array.from(new Map(hits.map((item) => [item.id, item])).values());
+      onHit({ latlng: e.latlng, items: uniqueByZoneId });
+    },
+  });
+
   return null;
 }
 
@@ -509,6 +543,9 @@ export default function NotificationDetail() {
   const [clickedGeometryLabel, setClickedGeometryLabel] = useState<string>('');
   const [selectedWmsLayers, setSelectedWmsLayers] = useState<string[]>([]);
   const [wmsLayersPanelOpen, setWmsLayersPanelOpen] = useState(false);
+  const [showZoneAreas, setShowZoneAreas] = useState(true);
+  const [zoneAreaScope, setZoneAreaScope] = useState<'active' | 'all'>('active');
+  const [selectedZoneAreaIds, setSelectedZoneAreaIds] = useState<number[]>([]);
   const [isMapExpanded, setIsMapExpanded] = useState(false);
 
   // Manual product linking states
@@ -517,6 +554,8 @@ export default function NotificationDetail() {
   const [showProductsOnMap, setShowProductsOnMap] = useState(true);
   const [selectedMapProductTypes, setSelectedMapProductTypes] = useState<string[]>(['enc', 'ienc', 'pilot_enc', 'chart']);
   const [multiPopup, setMultiPopup] = useState<{ latlng: L.LatLng; items: NotifMapHitItem[] } | null>(null);
+  const [zonePopup, setZonePopup] = useState<{ latlng: L.LatLng; items: ZoneMapHitItem[] } | null>(null);
+  const zoneHitOnLastMapClickRef = useRef(false);
 
   useEffect(() => {
     document.body.style.overflow = isMapExpanded ? 'hidden' : '';
@@ -664,6 +703,121 @@ export default function NotificationDetail() {
       return response.data;
     },
     enabled: !!currentProductionLineId,
+  });
+
+  // Query for all zone coverages (contains zone geometry for map overlay)
+  const { data: availableZones } = useQuery({
+    queryKey: ['zones'],
+    queryFn: async () => {
+      const response = await api.get('/coverages/zones');
+      return response.data;
+    },
+  });
+
+  const activeZoneCoverageIds = useMemo(() => {
+    return Array.from(
+      new Set(
+        (notification?.zones || [])
+          .map((zone: any) => Number(zone.kml_coverage_id))
+          .filter((zoneId: number) => Number.isFinite(zoneId))
+      )
+    );
+  }, [notification?.zones]);
+
+  useEffect(() => {
+    if (!availableZones || availableZones.length === 0) {
+      setSelectedZoneAreaIds([]);
+      return;
+    }
+
+    const allZoneIds = availableZones
+      .map((zone: any) => Number(zone.id))
+      .filter((zoneId: number) => Number.isFinite(zoneId));
+
+    if (zoneAreaScope === 'all') {
+      setSelectedZoneAreaIds(allZoneIds);
+      return;
+    }
+
+    const activeIds = activeZoneCoverageIds.filter((zoneId) => allZoneIds.includes(zoneId));
+    setSelectedZoneAreaIds(activeIds);
+  }, [availableZones, zoneAreaScope, activeZoneCoverageIds]);
+
+  const selectedZoneAreas = useMemo(() => {
+    if (!availableZones || selectedZoneAreaIds.length === 0) {
+      return [];
+    }
+
+    const selectedSet = new Set(selectedZoneAreaIds);
+    return availableZones.filter((zone: any) => selectedSet.has(Number(zone.id)));
+  }, [availableZones, selectedZoneAreaIds]);
+
+  const activeZonesForDisplay = useMemo(() => {
+    const uniqueByCoverageId = new Map<number, any>();
+    (notification?.zones || []).forEach((zone: any) => {
+      const coverageId = Number(zone.kml_coverage_id);
+      if (!Number.isFinite(coverageId)) return;
+      if (!uniqueByCoverageId.has(coverageId)) {
+        uniqueByCoverageId.set(coverageId, zone);
+      }
+    });
+    return Array.from(uniqueByCoverageId.values());
+  }, [notification?.zones]);
+
+  const zoneHitItems = useMemo(() => {
+    if (!showZoneAreas || selectedZoneAreas.length === 0) {
+      return [] as ZoneMapHitItem[];
+    }
+
+    const items: ZoneMapHitItem[] = [];
+    selectedZoneAreas.forEach((zone: any) => {
+      const zoneGeometry = parseGeoJsonObject(zone.geometry);
+      const geometries = extractRenderableGeometries(zoneGeometry);
+      const zoneDetection = (notification?.zones || []).find(
+        (nz: any) => Number(nz.kml_coverage_id) === Number(zone.id)
+      );
+      geometries.forEach((geom: any) => {
+        items.push({
+          id: Number(zone.id),
+          code: zone.code,
+          name: zone.name,
+          detectionMethod: zoneDetection?.detection_method || null,
+          geometry: geom,
+        });
+      });
+    });
+
+    return items;
+  }, [selectedZoneAreas, showZoneAreas, notification?.zones]);
+
+  // Link zone to notification mutation
+  const addZoneMutation = useMutation({
+    mutationFn: async (zoneCoverageId: number) => {
+      await api.post(`/notifications/${id}/zones/${zoneCoverageId}`);
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['notification', id] });
+      await queryClient.refetchQueries({ queryKey: ['notification', id] });
+    },
+    onError: (error: any) => {
+      console.error('Error adding zone:', error);
+      alert(`Fout bij toevoegen zone: ${getApiErrorMessage(error, 'onbekende fout')}`);
+    },
+  });
+
+  // Unlink zone from notification mutation
+  const removeZoneMutation = useMutation({
+    mutationFn: async (zoneCoverageId: number) => {
+      await api.delete(`/notifications/${id}/zones/${zoneCoverageId}`);
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['notification', id] });
+      await queryClient.refetchQueries({ queryKey: ['notification', id] });
+    },
+    onError: (error: any) => {
+      console.error('Error removing zone:', error);
+      alert(`Fout bij verwijderen zone: ${getApiErrorMessage(error, 'onbekende fout')}`);
+    },
   });
 
   // Link product to notification mutation
@@ -913,6 +1067,74 @@ export default function NotificationDetail() {
                   <label style={{ fontWeight: 'bold', color: '#6c757d', display: 'block', marginBottom: '0.25rem' }}>Bron Detail</label>
                   <div style={{ color: '#343a40' }}>{notification.source_detail || '-'}</div>
                 </div>
+              </div>
+
+              <div>
+                <label style={{ fontWeight: 'bold', color: '#6c757d', display: 'block', marginBottom: '0.5rem' }}>Actieve Zone(s)</label>
+                {activeZonesForDisplay.length > 0 ? (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                    {activeZonesForDisplay.map((zone: any) => (
+                      <span
+                        key={zone.id}
+                        style={{
+                          padding: '0.35rem 0.7rem',
+                          borderRadius: '14px',
+                          fontSize: '0.8rem',
+                          border: `1px solid ${zone.detection_method === 'manual' ? '#ffb74d' : '#90caf9'}`,
+                          color: zone.detection_method === 'manual' ? '#f57c00' : '#1976d2',
+                          backgroundColor: zone.detection_method === 'manual' ? '#fff3e0' : '#e3f2fd',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                        }}
+                        title={`${zone.zone_code}${zone.detection_method === 'manual' ? ' (handmatig toegevoegd)' : ' (automatisch gedetecteerd)'}`}
+                      >
+                        <strong>{zone.zone_name || zone.zone_code}</strong>
+                        {zone.detection_method === 'manual' && <span style={{ fontSize: '0.7rem' }}>✎</span>}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ color: '#6c757d', fontStyle: 'italic' }}>Geen actieve zones</div>
+                )}
+              </div>
+
+              <div>
+                <label style={{ fontWeight: 'bold', color: '#6c757d', display: 'block', marginBottom: '0.5rem' }}>Gekoppelde Producten</label>
+                {(() => {
+                  const filteredProducts = (notification.products || []).filter(
+                    (p: any) => {
+                      if (isIntegratedCorrectionListCode(p?.code)) return false;
+                      return currentProductionLineId ? p.production_line_id === currentProductionLineId : true;
+                    }
+                  );
+                  return filteredProducts.length > 0 ? (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                      {filteredProducts.map((p: any) => (
+                        <span
+                          key={p.id}
+                          style={{
+                            padding: '0.35rem 0.7rem',
+                            borderRadius: '14px',
+                            fontSize: '0.8rem',
+                            border: '1px solid #b2dfdb',
+                            color: '#00695c',
+                            backgroundColor: '#e0f2f1',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.35rem',
+                          }}
+                          title={p.name}
+                        >
+                          <strong>{p.code}</strong>
+                          {p.name && <span style={{ color: '#00897b' }}>– {p.name}</span>}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <div style={{ color: '#6c757d', fontStyle: 'italic' }}>Geen gekoppelde producten</div>
+                  );
+                })()}
               </div>
 
               {/* Opmerkingen Section */}
@@ -2298,6 +2520,64 @@ export default function NotificationDetail() {
                   )}
                 </div>
 
+                {/* Zone Areas Panel */}
+                <div style={{ marginBottom: '1rem', padding: '1rem', backgroundColor: '#f8f9fa', borderRadius: '6px', border: '1px solid #dee2e6' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap' }}>
+                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.9rem', color: '#495057', fontWeight: 600 }}>
+                      <input
+                        type="checkbox"
+                        checked={showZoneAreas}
+                        onChange={(e) => setShowZoneAreas(e.target.checked)}
+                        style={{ cursor: 'pointer' }}
+                      />
+                      Zone-oppervlakken tonen
+                    </label>
+                    <div style={{ fontSize: '0.8rem', color: '#6c757d' }}>
+                      Actief: {activeZoneCoverageIds.length} • Totaal: {availableZones?.length || 0}
+                    </div>
+                  </div>
+
+                  {showZoneAreas && (
+                    <div style={{ marginTop: '0.75rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                      <button
+                        type="button"
+                        onClick={() => setZoneAreaScope('active')}
+                        style={{
+                          padding: '0.35rem 0.65rem',
+                          fontSize: '0.8rem',
+                          backgroundColor: zoneAreaScope === 'active' ? '#0d6efd' : 'white',
+                          color: zoneAreaScope === 'active' ? 'white' : '#495057',
+                          border: '1px solid #0d6efd',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          fontWeight: 600,
+                        }}
+                      >
+                        Actieve zones
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setZoneAreaScope('all')}
+                        style={{
+                          padding: '0.35rem 0.65rem',
+                          fontSize: '0.8rem',
+                          backgroundColor: zoneAreaScope === 'all' ? '#0d6efd' : 'white',
+                          color: zoneAreaScope === 'all' ? 'white' : '#495057',
+                          border: '1px solid #0d6efd',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          fontWeight: 600,
+                        }}
+                      >
+                        Alle zones
+                      </button>
+                      <span style={{ fontSize: '0.8rem', color: '#6c757d' }}>
+                        Weergegeven: {selectedZoneAreas.length}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
                 <div
                   style={isMapExpanded ? {
                     position: 'fixed',
@@ -2349,6 +2629,142 @@ export default function NotificationDetail() {
                     style={{ height: isMapExpanded ? '100%' : '700px', width: '100%', borderRadius: '4px' }}
                   >
                   <MapResizeHandler trigger={isMapExpanded} />
+                  {showZoneAreas && (
+                    <>
+                      <MapZoneMultiClickHandler
+                        items={zoneHitItems}
+                        onHit={(result) => {
+                          zoneHitOnLastMapClickRef.current = !!result;
+                          setZonePopup(result);
+                          if (result) {
+                            setMultiPopup(null);
+                          }
+                        }}
+                      />
+                      {zonePopup && (
+                        <Popup
+                          position={zonePopup.latlng}
+                          eventHandlers={{ remove: () => setZonePopup(null) }}
+                          maxWidth={340}
+                        >
+                          <div style={{ maxHeight: '320px', overflowY: 'auto', minWidth: '240px' }}>
+                            <strong style={{ fontSize: '0.9rem', borderBottom: '1px solid #dee2e6', display: 'block', marginBottom: '0.5rem', paddingBottom: '0.3rem' }}>
+                              {zonePopup.items.length} zone{zonePopup.items.length !== 1 ? 's' : ''} op deze positie
+                            </strong>
+                            {zonePopup.items.map((item) => {
+                              const isActive = activeZoneCoverageIds.includes(item.id);
+                              const zoneActionsEnabled = !showProductsOnMap;
+                              return (
+                                <div key={item.id} style={{ marginBottom: '0.6rem', paddingBottom: '0.6rem', borderBottom: '1px solid #f0f0f0' }}>
+                                  <div style={{ fontWeight: '600' }}>{item.code}</div>
+                                  <div style={{ fontSize: '0.85rem', color: '#6c757d' }}>{item.name}</div>
+                                  <div style={{ marginTop: '0.25rem' }}>
+                                    {item.detectionMethod === 'manual' ? (
+                                      <span
+                                        style={{
+                                          padding: '0.15rem 0.5rem',
+                                          backgroundColor: '#fff3e0',
+                                          color: '#f57c00',
+                                          border: '1px solid #ffb74d',
+                                          borderRadius: '12px',
+                                          fontSize: '0.72rem',
+                                          fontWeight: 600,
+                                        }}
+                                      >
+                                        Handmatig
+                                      </span>
+                                    ) : item.detectionMethod === 'automatic' ? (
+                                      <span
+                                        style={{
+                                          padding: '0.15rem 0.5rem',
+                                          backgroundColor: '#e3f2fd',
+                                          color: '#1976d2',
+                                          border: '1px solid #90caf9',
+                                          borderRadius: '12px',
+                                          fontSize: '0.72rem',
+                                          fontWeight: 600,
+                                        }}
+                                      >
+                                        Automatisch
+                                      </span>
+                                    ) : (
+                                      <span
+                                        style={{
+                                          padding: '0.15rem 0.5rem',
+                                          backgroundColor: '#f1f3f5',
+                                          color: '#6c757d',
+                                          border: '1px solid #dee2e6',
+                                          borderRadius: '12px',
+                                          fontSize: '0.72rem',
+                                          fontWeight: 600,
+                                        }}
+                                      >
+                                        Niet actief
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div style={{ marginTop: '0.3rem' }}>
+                                    {!zoneActionsEnabled && (
+                                      <div style={{ fontSize: '0.72rem', color: '#6c757d', marginBottom: '0.35rem' }}>
+                                        Schakel 'Producten tonen' uit om zones te koppelen of ontkoppelen.
+                                      </div>
+                                    )}
+                                    {isActive ? (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          if (window.confirm(`Zone '${item.name || item.code}' verwijderen?`)) {
+                                            removeZoneMutation.mutate(item.id);
+                                            setZonePopup(null);
+                                          }
+                                        }}
+                                        disabled={!zoneActionsEnabled || removeZoneMutation.isPending}
+                                        style={{
+                                          fontSize: '0.75rem',
+                                          padding: '0.2rem 0.6rem',
+                                          backgroundColor: '#dc3545',
+                                          color: 'white',
+                                          border: 'none',
+                                          borderRadius: '4px',
+                                          cursor: (!zoneActionsEnabled || removeZoneMutation.isPending) ? 'not-allowed' : 'pointer',
+                                          opacity: 1,
+                                        }}
+                                      >
+                                        ✕ Ontkoppelen
+                                      </button>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          addZoneMutation.mutate(item.id);
+                                          setZonePopup(null);
+                                        }}
+                                        disabled={!zoneActionsEnabled || addZoneMutation.isPending}
+                                        style={{
+                                          fontSize: '0.75rem',
+                                          padding: '0.2rem 0.6rem',
+                                          backgroundColor: '#28a745',
+                                          color: 'white',
+                                          border: 'none',
+                                          borderRadius: '4px',
+                                          cursor: (!zoneActionsEnabled || addZoneMutation.isPending) ? 'not-allowed' : 'pointer',
+                                          opacity: 1,
+                                        }}
+                                      >
+                                        + Koppelen
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </Popup>
+                      )}
+                    </>
+                  )}
                   {showProductsOnMap && (() => {
                     const hitItems: NotifMapHitItem[] = (availableProducts || [])
                       .filter((p: any) => !isZK || selectedMapProductTypes.includes(p.type || ''))
@@ -2360,7 +2776,24 @@ export default function NotificationDetail() {
                       .filter(Boolean) as NotifMapHitItem[];
                     return (
                       <>
-                        <MapNotifMultiClickHandler items={hitItems} onHit={setMultiPopup} />
+                        <MapNotifMultiClickHandler
+                          items={hitItems}
+                          onHit={(result) => {
+                            // If zone handler already found hits on this same click,
+                            // keep focus on zone popup so zone link/unlink remains accessible.
+                            if (zoneHitOnLastMapClickRef.current) {
+                              zoneHitOnLastMapClickRef.current = false;
+                              setMultiPopup(null);
+                              return;
+                            }
+
+                            zoneHitOnLastMapClickRef.current = false;
+                            setMultiPopup(result);
+                            if (result) {
+                              setZonePopup(null);
+                            }
+                          }}
+                        />
                         {multiPopup && (
                           <Popup
                             position={multiPopup.latlng}
@@ -2417,6 +2850,59 @@ export default function NotificationDetail() {
                       attribution="&copy; Afdeling Kust"
                     />
                   ))}
+
+                  {/* Zone areas overlay (active zones by default, optional all zones) */}
+                  {showZoneAreas && selectedZoneAreas.flatMap((zone: any) => {
+                    const zoneGeometry = parseGeoJsonObject(zone.geometry);
+                    const zoneGeometries = extractRenderableGeometries(zoneGeometry);
+                    if (zoneGeometries.length === 0) {
+                      return [];
+                    }
+
+                    const isActiveZone = activeZoneCoverageIds.includes(Number(zone.id));
+                    const zoneDetection = (notification?.zones || []).find(
+                      (nz: any) => Number(nz.kml_coverage_id) === Number(zone.id)
+                    );
+
+                    return zoneGeometries.map((geom: any, index: number) => (
+                      <GeoJSON
+                        key={`zone-area-${zone.id}-${index}`}
+                        data={{
+                          type: 'Feature',
+                          geometry: geom,
+                          properties: {
+                            code: zone.code,
+                            name: zone.name,
+                            active: isActiveZone,
+                          }
+                        } as any}
+                        style={{
+                          color: isActiveZone ? '#0ea5e9' : '#94a3b8',
+                          weight: isActiveZone ? 2 : 1,
+                          opacity: isActiveZone ? 0.85 : 0.55,
+                          fillOpacity: isActiveZone ? 0.2 : 0.08,
+                        }}
+                        eventHandlers={{
+                          click: (e) => {
+                            zoneHitOnLastMapClickRef.current = true;
+                            setMultiPopup(null);
+                            setZonePopup({
+                              latlng: e.latlng,
+                              items: [
+                                {
+                                  id: Number(zone.id),
+                                  code: zone.code,
+                                  name: zone.name,
+                                  detectionMethod: zoneDetection?.detection_method || null,
+                                  geometry: geom,
+                                },
+                              ],
+                            });
+                          },
+                        }}
+                      />
+                    ));
+                  })}
 
                   {/* Drawing controls */}
                   <DrawControl 
