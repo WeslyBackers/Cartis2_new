@@ -78,6 +78,7 @@ export default function ProductVersions() {
   const [isCreateVersionCollapsed, setIsCreateVersionCollapsed] = useState(true);
   const [selectedVersionId, setSelectedVersionId] = useState<number | null>(null);
   const [newEditionOnPublish, setNewEditionOnPublish] = useState(false);
+  const [publishDateOnPublish, setPublishDateOnPublish] = useState('');
   const [selectedProductIdForCreate, setSelectedProductIdForCreate] = useState<number | null>(null);
   const [editionNumber, setEditionNumber] = useState('01');
   const [updateNumber, setUpdateNumber] = useState('00');
@@ -160,14 +161,18 @@ export default function ProductVersions() {
   });
 
   const publishVersionMutation = useMutation({
-    mutationFn: async ({ versionId, newEdition }: { versionId: number; newEdition: boolean }) => {
-      return await api.post(`/product-versions/${versionId}/publish`, { newEdition });
+    mutationFn: async ({ versionId, newEdition, publicationDate }: { versionId: number; newEdition: boolean; publicationDate?: string }) => {
+      return await api.post(`/product-versions/${versionId}/publish`, {
+        newEdition,
+        publicationDate: publicationDate || null,
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['productVersionsOpen', currentProductionLineId] });
       queryClient.invalidateQueries({ queryKey: ['productVersionDetail', selectedVersionId] });
       setSelectedVersionId(null);
       setNewEditionOnPublish(false);
+      setPublishDateOnPublish('');
     },
     onError: (error: any) => {
       alert(getApiErrorMessage(error, 'Publiceren van productversie mislukt'));
@@ -280,6 +285,7 @@ export default function ProductVersions() {
   });
 
   const selectedProductForCreate = visibleProducts.find((product: any) => Number(product.id) === Number(selectedProductIdForCreate));
+  const isSelectedVersionChart = String(selectedVersion?.product_type || '').trim().toLowerCase() === 'chart';
   const selectedProductCodeRaw = String(selectedProductForCreate?.code || '').trim().toLowerCase();
   const selectedProductNameRaw = String(selectedProductForCreate?.name || '').trim().toLowerCase();
   const normalizedSelectedProductCode = normalizeValue(selectedProductCodeRaw);
@@ -758,15 +764,34 @@ export default function ProductVersions() {
                 className="btn-success"
                 onClick={() => {
                   if (!selectedVersionId) return;
+
+                  if (isSelectedVersionChart && !publishDateOnPublish) {
+                    alert('Selecteer een publicatiedatum voor Chart-producten');
+                    return;
+                  }
+
                   publishVersionMutation.mutate({
                     versionId: selectedVersionId,
                     newEdition: newEditionOnPublish,
+                    publicationDate: publishDateOnPublish,
                   });
                 }}
-                disabled={publishVersionMutation.isPending}
+                disabled={publishVersionMutation.isPending || (isSelectedVersionChart && !publishDateOnPublish)}
               >
                 {publishVersionMutation.isPending ? 'Publiceren...' : 'Publiceren'}
               </button>
+
+              {isSelectedVersionChart && (
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', color: '#343a40' }}>
+                  publicatiedatum
+                  <input
+                    type="date"
+                    value={publishDateOnPublish}
+                    onChange={(e) => setPublishDateOnPublish(e.target.value)}
+                    style={{ padding: '0.3rem 0.45rem' }}
+                  />
+                </label>
+              )}
             </div>
           )}
 

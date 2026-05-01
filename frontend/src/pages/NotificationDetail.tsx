@@ -49,6 +49,40 @@ const sanitizeHtmlForDisplay = (html: string): string => {
     .replace(/\s(href|src)\s*=\s*("|')\s*javascript:[^"']*("|')/gi, '');
 };
 
+const extractEmailAddress = (value: string): string => {
+  if (!value) return '';
+
+  const match = value.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
+  return match ? match[0] : '';
+};
+
+const buildNotificationInfoRequestDraft = (notification: any) => {
+  const subject =
+    notification?.title?.trim() ||
+    `Vraag om meer info over melding ${notification?.code || notification?.id || ''}`.trim();
+  const recipient =
+    extractEmailAddress(notification?.source_detail || '') ||
+    extractEmailAddress(notification?.source || '');
+  const reference = notification?.code || notification?.id;
+
+  return {
+    recipient,
+    subject,
+    body: [
+      'Beste,',
+      '',
+      `Graag hadden we meer informatie ontvangen over "${subject}".`,
+      reference ? `Referentie: ${reference}` : '',
+      '',
+      'Alvast bedankt.',
+      '',
+      'Met vriendelijke groeten,',
+    ]
+      .filter(Boolean)
+      .join('\n'),
+  };
+};
+
 const INTEGRATED_CORRECTION_LIST_CODES = new Set([
   'VL-BG',
   'VL-BL',
@@ -524,10 +558,17 @@ export default function NotificationDetail() {
   const [isEditingOpmerkingen, setIsEditingOpmerkingen] = useState(false);
   const [collapsedProductionLines, setCollapsedProductionLines] = useState<Set<number>>(new Set());
   const [collapsedActivities, setCollapsedActivities] = useState(false);
+  const [isEmailFormVisible, setIsEmailFormVisible] = useState(false);
+  const [emailRecipient, setEmailRecipient] = useState('');
+  const [emailSubject, setEmailSubject] = useState('');
+  const [emailBody, setEmailBody] = useState('');
+  const [isInfoRequestsCollapsed, setIsInfoRequestsCollapsed] = useState(false);
+  const [basisinformatieHeight, setBasisinformatieHeight] = useState<number | null>(null);
   
   // Resizable layout state
   const [leftWidth, setLeftWidth] = useState(40); // percentage
   const [isResizing, setIsResizing] = useState(false);
+  const [isRightPaneCollapsed, setIsRightPaneCollapsed] = useState(false);
   
   // Coordinate management states
   const [showCoordinateForm, setShowCoordinateForm] = useState(false);
@@ -542,6 +583,7 @@ export default function NotificationDetail() {
   const [clickedGeometryCoords, setClickedGeometryCoords] = useState<Array<{ lat: number; lon: number; index: number }> | null>(null);
   const [clickedGeometryLabel, setClickedGeometryLabel] = useState<string>('');
   const [selectedWmsLayers, setSelectedWmsLayers] = useState<string[]>([]);
+  const [showWmsLayersOnMap, setShowWmsLayersOnMap] = useState(true);
   const [wmsLayersPanelOpen, setWmsLayersPanelOpen] = useState(false);
   const [showZoneAreas, setShowZoneAreas] = useState(true);
   const [zoneAreaScope, setZoneAreaScope] = useState<'active' | 'all'>('active');
@@ -556,6 +598,7 @@ export default function NotificationDetail() {
   const [multiPopup, setMultiPopup] = useState<{ latlng: L.LatLng; items: NotifMapHitItem[] } | null>(null);
   const [zonePopup, setZonePopup] = useState<{ latlng: L.LatLng; items: ZoneMapHitItem[] } | null>(null);
   const zoneHitOnLastMapClickRef = useRef(false);
+  const basisinformatieRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     document.body.style.overflow = isMapExpanded ? 'hidden' : '';
@@ -577,6 +620,27 @@ export default function NotificationDetail() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isMapExpanded]);
+
+  useEffect(() => {
+    const element = basisinformatieRef.current;
+    if (!element) return;
+
+    const updateHeight = () => {
+      setBasisinformatieHeight(element.getBoundingClientRect().height);
+    };
+
+    updateHeight();
+
+    const observer = new ResizeObserver(() => {
+      updateHeight();
+    });
+
+    observer.observe(element);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [isEditingOpmerkingen, opmerkingen]);
 
   const { data: notification, isLoading } = useQuery({
     queryKey: ['notification', id],
@@ -693,6 +757,15 @@ export default function NotificationDetail() {
     enabled: !!id,
   });
 
+  const { data: infoRequests } = useQuery({
+    queryKey: ['notificationInfoRequests', id],
+    queryFn: async () => {
+      const response = await api.get(`/notifications/${id}/info-requests`);
+      return response.data;
+    },
+    enabled: !!id,
+  });
+
   // Query for available products (for manual linking and map display)
   const { data: availableProducts } = useQuery({
     queryKey: ['availableProducts', currentProductionLineId],
@@ -714,14 +787,12 @@ export default function NotificationDetail() {
     },
   });
 
-  const activeZoneCoverageIds = useMemo(() => {
-    return Array.from(
-      new Set(
-        (notification?.zones || [])
-          .map((zone: any) => Number(zone.kml_coverage_id))
-          .filter((zoneId: number) => Number.isFinite(zoneId))
-      )
-    );
+  const activeZoneCoverageIds = useMemo<number[]>(() => {
+    const ids = (notification?.zones || [])
+      .map((zone: any) => Number(zone.kml_coverage_id))
+      .filter((zoneId: number) => Number.isFinite(zoneId));
+
+    return Array.from(new Set<number>(ids));
   }, [notification?.zones]);
 
   useEffect(() => {
@@ -730,7 +801,7 @@ export default function NotificationDetail() {
       return;
     }
 
-    const allZoneIds = availableZones
+    const allZoneIds: number[] = availableZones
       .map((zone: any) => Number(zone.id))
       .filter((zoneId: number) => Number.isFinite(zoneId));
 
@@ -739,7 +810,7 @@ export default function NotificationDetail() {
       return;
     }
 
-    const activeIds = activeZoneCoverageIds.filter((zoneId) => allZoneIds.includes(zoneId));
+    const activeIds: number[] = activeZoneCoverageIds.filter((zoneId) => allZoneIds.includes(zoneId));
     setSelectedZoneAreaIds(activeIds);
   }, [availableZones, zoneAreaScope, activeZoneCoverageIds]);
 
@@ -853,6 +924,20 @@ export default function NotificationDetail() {
     onError: (error: any) => {
       console.error('Error detecting products:', error);
       alert(`Fout bij herberekenen producten: ${getApiErrorMessage(error, 'onbekende fout')}`);
+    },
+  });
+
+  const createInfoRequestMutation = useMutation({
+    mutationFn: async ({ recipient, subject, body }: { recipient: string; subject: string; body: string }) => {
+      const response = await api.post(`/notifications/${id}/info-requests`, {
+        recipient,
+        subject,
+        body,
+      });
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['notificationInfoRequests', id] });
     },
   });
 
@@ -970,6 +1055,11 @@ export default function NotificationDetail() {
     setIsResizing(true);
   };
 
+  useEffect(() => {
+    if (!isRightPaneCollapsed) return;
+    setIsResizing(false);
+  }, [isRightPaneCollapsed]);
+
   // Handle geometry click to extract and display coordinates
   const handleGeometryClick = (geometry: any, label: string) => {
     const coords: Array<{ lat: number; lon: number; index: number }> = [];
@@ -998,6 +1088,49 @@ export default function NotificationDetail() {
     return <div>Melding niet gevonden</div>;
   }
 
+  const infoRequestDraft = buildNotificationInfoRequestDraft(notification);
+
+  const openInfoRequestForm = () => {
+    setEmailRecipient(infoRequestDraft.recipient);
+    setEmailSubject(infoRequestDraft.subject);
+    setEmailBody(infoRequestDraft.body);
+    setIsEmailFormVisible(true);
+  };
+
+  const handleCreateInfoRequestEmail = async () => {
+    if (!emailRecipient.trim()) {
+      alert('Voer een ontvanger in');
+      return;
+    }
+
+    try {
+      await createInfoRequestMutation.mutateAsync({
+        recipient: emailRecipient.trim(),
+        subject: emailSubject.trim(),
+        body: emailBody.trim(),
+      });
+
+      const query = new URLSearchParams();
+
+      if (emailSubject.trim()) {
+        query.set('subject', emailSubject.trim());
+      }
+
+      if (emailBody.trim()) {
+        query.set('body', emailBody);
+      }
+
+      const recipient = emailRecipient.trim();
+      const queryString = query.toString();
+      const mailtoUrl = `mailto:${recipient}${queryString ? `?${queryString}` : ''}`;
+
+      window.location.href = mailtoUrl;
+    } catch (error) {
+      console.error('Error saving notification info request:', error);
+      alert('Fout bij opslaan van e-mailverzoek');
+    }
+  };
+
   const geometry = parseGeoJsonObject(notification.geometry);
   const mainGeometries = extractRenderableGeometries(geometry);
   let center: [number, number] = [51.2, 3.5]; // Default Belgium center
@@ -1016,14 +1149,19 @@ export default function NotificationDetail() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
         <h1>Melding Details - {notification.code || `#${notification.id}`}</h1>
-        <button onClick={() => navigate('/notifications')}>← Terug naar overzicht</button>
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          <button type="button" onClick={() => setIsRightPaneCollapsed(prev => !prev)}>
+            {isRightPaneCollapsed ? 'Toon rechter paneel' : 'Verberg rechter paneel'}
+          </button>
+          <button onClick={() => navigate('/notifications')}>← Terug naar overzicht</button>
+        </div>
       </div>
 
       <div id="resizable-container" style={{ display: 'flex', gap: '0', marginTop: '1rem', position: 'relative' }}>
         {/* Details Section */}
-        <div style={{ width: `${leftWidth}%`, minWidth: '300px', paddingRight: '1rem' }}>
+        <div style={{ width: isRightPaneCollapsed ? '100%' : `${leftWidth}%`, minWidth: '300px', paddingRight: isRightPaneCollapsed ? '0' : '1rem' }}>
           {/* Basisinformatie */}
-          <div style={{ backgroundColor: 'white', padding: '1.5rem', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', color: '#343a40', marginBottom: '1.5rem' }}>
+          <div ref={basisinformatieRef} style={{ backgroundColor: 'white', padding: '1.5rem', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', color: '#343a40', marginBottom: '1.5rem' }}>
             <h2 style={{ marginBottom: '1rem', color: '#343a40' }}>Basisinformatie</h2>
             
             <div style={{ display: 'grid', gap: '1rem' }}>
@@ -1137,6 +1275,117 @@ export default function NotificationDetail() {
                 })()}
               </div>
 
+              <div style={{ marginTop: '0.5rem' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (isEmailFormVisible) {
+                      setIsEmailFormVisible(false);
+                      return;
+                    }
+                    openInfoRequestForm();
+                  }}
+                  style={{
+                    padding: '0.75rem 1.5rem',
+                    backgroundColor: '#e67700',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontSize: '1rem',
+                    fontWeight: 'bold',
+                  }}
+                >
+                  {isEmailFormVisible ? 'Formulier sluiten' : 'Meer info opvragen'}
+                </button>
+
+                {isEmailFormVisible && (
+                  <div style={{ marginTop: '1rem', padding: '1rem', backgroundColor: '#fff8e1', borderRadius: '6px', border: '1px solid #ffe69c' }}>
+                    <div style={{ fontWeight: 600, color: '#7a4b00', marginBottom: '0.75rem' }}>
+                      Nieuwe e-mail opstellen
+                    </div>
+                    <div style={{ display: 'grid', gap: '0.75rem' }}>
+                      <div>
+                        <label style={{ fontWeight: 'bold', color: '#6c757d', display: 'block', marginBottom: '0.25rem', fontSize: '0.9rem' }}>
+                          Aan
+                        </label>
+                        <input
+                          type="email"
+                          value={emailRecipient}
+                          onChange={(e) => setEmailRecipient(e.target.value)}
+                          placeholder="naam@example.com"
+                          style={{ width: '100%', padding: '0.65rem 0.75rem', borderRadius: '4px', border: '1px solid #ced4da', fontSize: '0.95rem' }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ fontWeight: 'bold', color: '#6c757d', display: 'block', marginBottom: '0.25rem', fontSize: '0.9rem' }}>
+                          Onderwerp
+                        </label>
+                        <input
+                          type="text"
+                          value={emailSubject}
+                          onChange={(e) => setEmailSubject(e.target.value)}
+                          placeholder="Onderwerp"
+                          style={{ width: '100%', padding: '0.65rem 0.75rem', borderRadius: '4px', border: '1px solid #ced4da', fontSize: '0.95rem' }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ fontWeight: 'bold', color: '#6c757d', display: 'block', marginBottom: '0.25rem', fontSize: '0.9rem' }}>
+                          Bericht
+                        </label>
+                        <textarea
+                          value={emailBody}
+                          onChange={(e) => setEmailBody(e.target.value)}
+                          rows={8}
+                          style={{ width: '100%', padding: '0.65rem 0.75rem', borderRadius: '4px', border: '1px solid #ced4da', fontSize: '0.95rem', resize: 'vertical', fontFamily: 'inherit' }}
+                        />
+                      </div>
+                      <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                        <button
+                          type="button"
+                          onClick={openInfoRequestForm}
+                          style={{
+                            padding: '0.55rem 0.9rem',
+                            backgroundColor: '#6c757d',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            fontSize: '0.9rem',
+                          }}
+                        >
+                          Herstel voorstel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleCreateInfoRequestEmail}
+                          disabled={createInfoRequestMutation.isPending || !emailRecipient.trim() || !emailSubject.trim() || !emailBody.trim()}
+                          style={{
+                            padding: '0.55rem 0.9rem',
+                            backgroundColor: '#e67700',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor:
+                              createInfoRequestMutation.isPending || !emailRecipient.trim() || !emailSubject.trim() || !emailBody.trim()
+                                ? 'not-allowed'
+                                : 'pointer',
+                            opacity:
+                              createInfoRequestMutation.isPending || !emailRecipient.trim() || !emailSubject.trim() || !emailBody.trim()
+                                ? 0.7
+                                : 1,
+                            fontSize: '0.9rem',
+                            fontWeight: 600,
+                          }}
+                        >
+                          {createInfoRequestMutation.isPending ? 'Bezig...' : 'Opslaan + Open e-mail'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               {/* Opmerkingen Section */}
               <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid #e9ecef' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
@@ -1230,16 +1479,30 @@ export default function NotificationDetail() {
           </div>
 
           {/* Inhoud */}
-          <div style={{ backgroundColor: 'white', padding: '1.5rem', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', color: '#343a40', marginBottom: '1.5rem' }}>
-            <h2 style={{ marginBottom: '1rem', color: '#343a40' }}>Inhoud</h2>
-            {notification.content && !isHtmlEmpty(notification.content) ? (
-              <div
-                style={{ color: '#343a40', lineHeight: '1.6' }}
-                dangerouslySetInnerHTML={{ __html: sanitizeHtmlForDisplay(notification.content) }}
-              />
-            ) : (
-              <div style={{ color: '#6c757d', fontStyle: 'italic' }}>Geen inhoud beschikbaar</div>
-            )}
+          <div
+            style={{
+              backgroundColor: 'white',
+              padding: '1.5rem',
+              borderRadius: '8px',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+              color: '#343a40',
+              marginBottom: '1.5rem',
+              height: basisinformatieHeight ? `${basisinformatieHeight}px` : undefined,
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          >
+            <h2 style={{ marginBottom: '1rem', color: '#343a40', flexShrink: 0 }}>Inhoud</h2>
+            <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', paddingRight: '0.25rem' }}>
+              {notification.content && !isHtmlEmpty(notification.content) ? (
+                <div
+                  style={{ color: '#343a40', lineHeight: '1.6' }}
+                  dangerouslySetInnerHTML={{ __html: sanitizeHtmlForDisplay(notification.content) }}
+                />
+              ) : (
+                <div style={{ color: '#6c757d', fontStyle: 'italic' }}>Geen inhoud beschikbaar</div>
+              )}
+            </div>
           </div>
 
           {/* Bijlagen */}
@@ -1721,6 +1984,63 @@ export default function NotificationDetail() {
             })()}
           </div>
 
+          {infoRequests && infoRequests.length > 0 && (
+            <div style={{ backgroundColor: 'white', padding: '1.5rem', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', color: '#343a40', marginBottom: '1.5rem' }}>
+              <h2
+                style={{
+                  marginBottom: '1rem',
+                  color: '#343a40',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  userSelect: 'none',
+                }}
+                onClick={() => setIsInfoRequestsCollapsed(!isInfoRequestsCollapsed)}
+              >
+                <span
+                  style={{
+                    display: 'inline-flex',
+                    transform: isInfoRequestsCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)',
+                    transition: 'transform 0.3s ease',
+                    fontSize: '1.2rem',
+                  }}
+                >
+                  ▼
+                </span>
+                Verzoeken om meer informatie ({infoRequests.length})
+              </h2>
+              {!isInfoRequestsCollapsed && (
+                <div style={{ display: 'grid', gap: '0.75rem' }}>
+                  {infoRequests.map((request: any) => (
+                    <div
+                      key={request.id}
+                      style={{
+                        padding: '1rem',
+                        backgroundColor: '#f8f9fa',
+                        borderRadius: '4px',
+                        border: '1px solid #e9ecef',
+                      }}
+                    >
+                      <div style={{ fontWeight: '600', color: '#343a40', marginBottom: '0.25rem' }}>
+                        Aan: {request.recipient}
+                      </div>
+                      <div style={{ fontSize: '0.85rem', color: '#6c757d', marginBottom: '0.5rem' }}>
+                        {request.first_name} {request.last_name} • {format(new Date(request.created_at), 'dd/MM/yyyy HH:mm')}
+                      </div>
+                      <div style={{ fontWeight: '500', color: '#343a40', marginBottom: '0.5rem', fontSize: '0.95rem' }}>
+                        Onderwerp: {request.subject}
+                      </div>
+                      <div style={{ fontSize: '0.9rem', color: '#343a40', lineHeight: '1.5', backgroundColor: '#ffffff', padding: '0.75rem', borderRadius: '4px', border: '1px solid #dee2e6', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                        {request.body}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Alle Opmerkingen */}
           {notification.comments && notification.comments.length > 0 && (
             <div style={{ backgroundColor: 'white', padding: '1.5rem', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', color: '#343a40', marginBottom: '1.5rem' }}>
@@ -1887,6 +2207,8 @@ export default function NotificationDetail() {
           )}
         </div>
 
+        {!isRightPaneCollapsed && (
+        <>
         {/* Resizer */}
         <div
           onMouseDown={handleResizeStart}
@@ -2581,18 +2903,33 @@ export default function NotificationDetail() {
                 <div
                   style={isMapExpanded ? {
                     position: 'fixed',
-                    inset: '1rem',
+                    inset: 0,
                     zIndex: 2000,
                     backgroundColor: '#ffffff',
-                    borderRadius: '10px',
-                    border: '1px solid #dee2e6',
-                    boxShadow: '0 16px 40px rgba(0,0,0,0.25)',
-                    padding: '0.75rem',
+                    borderRadius: 0,
+                    border: 'none',
+                    boxShadow: 'none',
+                    padding: 0,
                     display: 'flex',
                     flexDirection: 'column',
                   } : undefined}
                 >
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginBottom: isMapExpanded ? 0 : '0.5rem', padding: isMapExpanded ? '0.75rem' : 0, flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      onClick={() => setShowZoneAreas(prev => !prev)}
+                      style={{
+                        backgroundColor: showZoneAreas ? '#17a2b8' : '#6c757d',
+                        padding: '0.45rem 0.8rem',
+                        fontSize: '0.85rem',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {showZoneAreas ? '🧭 Zones verbergen' : '🧭 Zones tonen'}
+                    </button>
                     {currentProductionLineId && (
                       <button
                         type="button"
@@ -2612,6 +2949,21 @@ export default function NotificationDetail() {
                     )}
                     <button
                       type="button"
+                      onClick={() => setShowWmsLayersOnMap(prev => !prev)}
+                      style={{
+                        backgroundColor: showWmsLayersOnMap ? '#6f42c1' : '#6c757d',
+                        padding: '0.45rem 0.8rem',
+                        fontSize: '0.85rem',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {showWmsLayersOnMap ? '🛰️ WMS verbergen' : '🛰️ WMS tonen'}
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => setIsMapExpanded(prev => !prev)}
                       style={{
                         backgroundColor: isMapExpanded ? '#6c757d' : '#0d6efd',
@@ -2623,10 +2975,17 @@ export default function NotificationDetail() {
                     </button>
                   </div>
 
+                  <div
+                    style={{
+                      height: isMapExpanded ? '100%' : '700px',
+                      minHeight: 0,
+                      flex: isMapExpanded ? 1 : undefined,
+                    }}
+                  >
                   <MapContainer
                     center={center}
                     zoom={zoom}
-                    style={{ height: isMapExpanded ? '100%' : '700px', width: '100%', borderRadius: '4px' }}
+                    style={{ height: '100%', width: '100%', borderRadius: isMapExpanded ? 0 : '4px' }}
                   >
                   <MapResizeHandler trigger={isMapExpanded} />
                   {showZoneAreas && (
@@ -2839,7 +3198,7 @@ export default function NotificationDetail() {
                   />
 
                   {/* WMS layers from gis.afdelingkust.be */}
-                  {selectedWmsLayers.map(layerName => (
+                  {showWmsLayersOnMap && selectedWmsLayers.map(layerName => (
                     <WMSTileLayer
                       key={layerName}
                       url={WMS_URL}
@@ -3027,6 +3386,7 @@ export default function NotificationDetail() {
                     return null;
                   })}
                   </MapContainer>
+                  </div>
                 </div>
                 
                 {/* Clicked Geometry Coordinates Table */}
@@ -3276,6 +3636,8 @@ export default function NotificationDetail() {
             </div>
           )}
         </div>
+        </>
+        )}
       </div>
     </div>
   );

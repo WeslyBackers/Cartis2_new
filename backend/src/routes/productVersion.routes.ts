@@ -14,6 +14,7 @@ router.get('/', authenticate, async (req, res) => {
 
     let query = `
       SELECT pv.*, p.code as product_code, p.name as product_name, p.description as product_description,
+        p.type as product_type,
         p.production_line_id,
         pl.code as production_line_code,
         pl.name as production_line_name,
@@ -63,6 +64,7 @@ router.get('/:id', authenticate, async (req, res) => {
     // Get version details
     const versionResult = await pool.query(
       `SELECT pv.*, p.code as product_code, p.name as product_name, p.description as product_description,
+        p.type as product_type,
         p.production_line_id,
         pl.code as production_line_code,
         pl.name as production_line_name,
@@ -278,19 +280,46 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
 router.post('/:id/publish', authenticate, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
-    const { newEdition } = req.body || {};
+    const { newEdition, publicationDate } = req.body || {};
     const userId = req.user?.id;
+
+    const versionMetaResult = await pool.query(
+      `SELECT pv.id, pv.product_id, p.name as product_name, p.type as product_type
+       FROM product_versions pv
+       JOIN products p ON pv.product_id = p.id
+       WHERE pv.id = $1`,
+      [id]
+    );
+
+    if (versionMetaResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Product version not found' });
+    }
+
+    const versionMeta = versionMetaResult.rows[0];
+    const productType = String(versionMeta.product_type || '').trim().toLowerCase();
+    const isChartType = productType === 'chart';
+
+    if (isChartType && (!publicationDate || !String(publicationDate).trim())) {
+      return res.status(400).json({ error: 'Publication date is required for chart products' });
+    }
+
+    const publicationDateValue = publicationDate ? String(publicationDate).trim() : null;
 
     // Update version status
     const result = await pool.query(
       `UPDATE product_versions
       SET status = 'published',
-          publication_date = CURRENT_DATE,
+          publication_date = COALESCE($2::date, CURRENT_DATE),
+          version_number = CASE
+            WHEN lower(COALESCE($5, '')) = 'chart'
+              THEN COALESCE($4, '') || '_' || to_char(COALESCE($2::date, CURRENT_DATE), 'DD/MM/YYYY')
+            ELSE version_number
+          END,
           published_by = $1,
           updated_at = CURRENT_TIMESTAMP
-      WHERE id = $2
+      WHERE id = $3
       RETURNING *`,
-      [userId, id]
+      [userId, publicationDateValue, id, versionMeta.product_name, versionMeta.product_type]
     );
 
     if (result.rows.length === 0) {

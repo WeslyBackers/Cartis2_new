@@ -1529,6 +1529,51 @@ router.get('/:id/comments', authenticate, async (req: AuthRequest, res) => {
   }
 });
 
+// Get all info requests for a notification
+router.get('/:id/info-requests', authenticate, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query(
+      `SELECT nir.*, u.first_name, u.last_name
+       FROM notification_info_requests nir
+       LEFT JOIN users u ON nir.created_by = u.id
+       WHERE nir.notification_id = $1
+       ORDER BY nir.created_at DESC`,
+      [id]
+    );
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Get notification info requests error:', error);
+    res.status(500).json({ error: 'Failed to fetch notification info requests' });
+  }
+});
+
+// Create a new info request for a notification
+router.post('/:id/info-requests', authenticate, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const { recipient, subject, body } = req.body;
+    const userId = req.user?.id;
+
+    if (!recipient || !subject || !body) {
+      return res.status(400).json({ error: 'Recipient, subject, and body are required' });
+    }
+
+    const result = await pool.query(
+      `INSERT INTO notification_info_requests (notification_id, recipient, subject, body, created_by)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING *`,
+      [id, recipient, subject, body, userId]
+    );
+
+    res.json({ message: 'Notification info request saved successfully', data: result.rows[0] });
+  } catch (error) {
+    console.error('Create notification info request error:', error);
+    res.status(500).json({ error: 'Failed to save notification info request' });
+  }
+});
+
 // Update a comment
 router.put('/comments/:commentId', authenticate, async (req: AuthRequest, res) => {
   try {

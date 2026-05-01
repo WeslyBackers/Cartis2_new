@@ -248,8 +248,10 @@ export default function TaskDetail() {
   const [articlesCollapsed, setArticlesCollapsed] = useState(true);
   const [expandedArticleId, setExpandedArticleId] = useState<number | null>(null);
   const [previewArticle, setPreviewArticle] = useState<any>(null);
+  const [showWmsLayersOnMap, setShowWmsLayersOnMap] = useState(true);
   const [leftWidth, setLeftWidth] = useState(50); // percentage
   const [isResizing, setIsResizing] = useState(false);
+  const [isRightPaneCollapsed, setIsRightPaneCollapsed] = useState(false);
 
   // Handle resizing
   useEffect(() => {
@@ -300,6 +302,11 @@ export default function TaskDetail() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isMapExpanded]);
+
+  useEffect(() => {
+    if (!isRightPaneCollapsed) return;
+    setIsResizing(false);
+  }, [isRightPaneCollapsed]);
 
   const { data: task, isLoading, error } = useQuery({
     queryKey: ['task', id],
@@ -961,27 +968,45 @@ export default function TaskDetail() {
     <div style={{ padding: '2rem', width: '100%' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
         <h1>Taak Details - {task.task_number}</h1>
-        <button 
-          onClick={() => navigate('/tasks')}
-          style={{
-            padding: '0.6rem 1.5rem',
-            backgroundColor: '#6c757d',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-            fontSize: '0.95rem',
-            fontWeight: '500',
-          }}
-        >
-          ← Terug naar taken
-        </button>
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          <button
+            type="button"
+            onClick={() => setIsRightPaneCollapsed(prev => !prev)}
+            style={{
+              padding: '0.6rem 1.5rem',
+              backgroundColor: '#0d6efd',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '0.95rem',
+              fontWeight: '500',
+            }}
+          >
+            {isRightPaneCollapsed ? 'Toon rechter paneel' : 'Verberg rechter paneel'}
+          </button>
+          <button 
+            onClick={() => navigate('/tasks')}
+            style={{
+              padding: '0.6rem 1.5rem',
+              backgroundColor: '#6c757d',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '0.95rem',
+              fontWeight: '500',
+            }}
+          >
+            ← Terug naar taken
+          </button>
+        </div>
       </div>
 
       {/* Two Column Layout */}
       <div id="task-resizable-container" style={{ display: 'flex', gap: '0', alignItems: 'start', position: 'relative' }}>
         {/* Left Column */}
-        <div style={{ width: `${leftWidth}%`, minWidth: '300px', display: 'flex', flexDirection: 'column', gap: '1.5rem', paddingRight: '0.5rem' }}>
+        <div style={{ width: isRightPaneCollapsed ? '100%' : `${leftWidth}%`, minWidth: '300px', display: 'flex', flexDirection: 'column', gap: '1.5rem', paddingRight: isRightPaneCollapsed ? '0' : '0.5rem' }}>
           {/* Task Details Card */}
           <div style={{ backgroundColor: 'white', padding: '1.5rem', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
         <h2 style={{ marginBottom: '1rem', color: '#343a40' }}>Taakinformatie</h2>
@@ -1821,7 +1846,8 @@ export default function TaskDetail() {
                 BaZ-2 Artikelen ({articles?.length || 0})
               </h2>
 
-              {!articlesCollapsed && (<>
+              {!articlesCollapsed && (
+              <div>
               {/* Existing articles list */}
               {articles && articles.length > 0 && (
                 <div style={{ marginBottom: '1.5rem' }}>
@@ -2234,7 +2260,7 @@ export default function TaskDetail() {
                   )}
                 </div>
               </div>}
-              </>)}
+              </div>)}
             </div>
           )}
 
@@ -2275,6 +2301,8 @@ export default function TaskDetail() {
           )}
         </div>
 
+        {!isRightPaneCollapsed && (
+        <div style={{ display: 'contents' }}>
         {/* Resizer */}
         <div
           onMouseDown={() => setIsResizing(true)}
@@ -2368,8 +2396,8 @@ export default function TaskDetail() {
                   );
                 })}
               </div>
-            </div>
-          )}
+              </div>
+              )}
           
           {/* Product Type Filter - ZK only */}
           {isZK && (
@@ -2450,18 +2478,18 @@ export default function TaskDetail() {
           <div
             style={isMapExpanded ? {
               position: 'fixed',
-              inset: '1rem',
+              inset: 0,
               zIndex: 2000,
               backgroundColor: '#ffffff',
-              borderRadius: '10px',
-              border: '1px solid #dee2e6',
-              boxShadow: '0 16px 40px rgba(0,0,0,0.25)',
-              padding: '0.75rem',
+              borderRadius: 0,
+              border: 'none',
+              boxShadow: 'none',
+              padding: 0,
               display: 'flex',
               flexDirection: 'column',
             } : undefined}
           >
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginBottom: '0.5rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginBottom: isMapExpanded ? 0 : '0.5rem', padding: isMapExpanded ? '0.75rem' : 0, flexWrap: 'wrap' }}>
               <button
                 type="button"
                 onClick={() => setShowAllProductsOnMap(prev => !prev)}
@@ -2472,6 +2500,21 @@ export default function TaskDetail() {
                 }}
               >
                 {showAllProductsOnMap ? '🗺️ Producten verbergen' : '🗺️ Alle producten tonen'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowWmsLayersOnMap(prev => !prev)}
+                style={{
+                  backgroundColor: showWmsLayersOnMap ? '#6f42c1' : '#6c757d',
+                  padding: '0.45rem 0.8rem',
+                  fontSize: '0.85rem',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                }}
+              >
+                {showWmsLayersOnMap ? '🛰️ WMS verbergen' : '🛰️ WMS tonen'}
               </button>
               <button
                 type="button"
@@ -2489,10 +2532,11 @@ export default function TaskDetail() {
             <div
               style={{
                 height: isMapExpanded ? '100%' : '500px',
-                borderRadius: '8px',
+                borderRadius: isMapExpanded ? 0 : '8px',
                 overflow: 'hidden',
-                border: '1px solid #dee2e6',
+                border: isMapExpanded ? 'none' : '1px solid #dee2e6',
                 minHeight: 0,
+                flex: isMapExpanded ? 1 : undefined,
               }}
             >
               <MapContainer
@@ -2551,7 +2595,7 @@ export default function TaskDetail() {
               />
 
               {/* WMS layers from gis.afdelingkust.be */}
-              {selectedWmsLayers.map(layerName => (
+              {showWmsLayersOnMap && selectedWmsLayers.map(layerName => (
                 <WMSTileLayer
                   key={layerName}
                   url={WMS_URL}
@@ -2941,6 +2985,8 @@ export default function TaskDetail() {
           </div>
         )}
       </div>
+      </div>
+      )}
       </div>
 
       {/* Article Preview Modal */}
