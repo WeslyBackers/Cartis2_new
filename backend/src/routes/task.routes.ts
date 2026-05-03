@@ -424,16 +424,21 @@ router.put('/:id', authenticate, async (req: AuthRequest, res) => {
   }
 });
 
-// Toggle task flags (needs_followup, needs_extra_info)
+// Toggle task flags (msi_active, needs_followup, needs_extra_info)
 router.patch('/:id/flags', authenticate, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
-    const { needsFollowup, needsExtraInfo } = req.body;
+    const { msiActive, needsFollowup, needsExtraInfo } = req.body;
 
     const updates: string[] = [];
     const params: any[] = [];
     let paramCount = 0;
 
+    if (typeof msiActive === 'boolean') {
+      paramCount++;
+      updates.push(`msi_active = $${paramCount}`);
+      params.push(msiActive);
+    }
     if (typeof needsFollowup === 'boolean') {
       paramCount++;
       updates.push(`needs_followup = $${paramCount}`);

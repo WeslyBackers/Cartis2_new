@@ -263,7 +263,7 @@ export default function Tasks() {
   });
 
   const toggleTaskFlagsMutation = useMutation({
-    mutationFn: async ({ taskId, flags }: { taskId: number; flags: { needsFollowup?: boolean; needsExtraInfo?: boolean } }) => {
+    mutationFn: async ({ taskId, flags }: { taskId: number; flags: { msiActive?: boolean; needsFollowup?: boolean; needsExtraInfo?: boolean } }) => {
       const response = await api.patch(`/tasks/${taskId}/flags`, flags);
       return response.data;
     },
@@ -679,12 +679,14 @@ export default function Tasks() {
                           </div>
                         ) : '-'}
                       </td>
-                      <td onClick={() => toggleExpand(task.id)}>
-                        {task.msi_active && (
-                          <span style={{ color: 'var(--color-danger)', fontWeight: 'bold' }}>
-                            ✓
-                          </span>
-                        )}
+                      <td onClick={(e) => e.stopPropagation()} style={{ textAlign: 'center' }}>
+                        <input
+                          type="checkbox"
+                          checked={!!task.msi_active}
+                          onChange={() => toggleTaskFlagsMutation.mutate({ taskId: task.id, flags: { msiActive: !task.msi_active } })}
+                          style={{ cursor: 'pointer', transform: 'scale(1.2)', accentColor: '#856404' }}
+                          title="MSI actief"
+                        />
                       </td>
                       <td onClick={(e) => e.stopPropagation()} style={{ textAlign: 'center' }}>
                         <input
@@ -868,11 +870,15 @@ title={a.is_temporary ? 'Tijdelijk artikel' : 'Artikel'}
                                 )}
 
                                 <div style={{ display: 'flex', gap: '1.5rem', fontSize: '0.9rem', flexWrap: 'wrap' }}>
-                                  {expandedTask.msi_active && (
-                                    <span style={{ color: '#856404', fontWeight: '500', background: '#fff3cd', padding: '0.25rem 0.5rem', borderRadius: '3px' }}>
-                                      ⚠️ MSI actief
-                                    </span>
-                                  )}
+                                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer' }}>
+                                    <input
+                                      type="checkbox"
+                                      checked={!!expandedTask.msi_active}
+                                      onChange={() => toggleTaskFlagsMutation.mutate({ taskId: expandedTask.id, flags: { msiActive: !expandedTask.msi_active } })}
+                                      style={{ cursor: 'pointer', transform: 'scale(1.3)', accentColor: '#856404' }}
+                                    />
+                                    <span style={{ fontWeight: expandedTask.msi_active ? '600' : '400', color: '#856404' }}>MSI actief</span>
+                                  </label>
                                   <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer' }}>
                                     <input
                                       type="checkbox"

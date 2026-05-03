@@ -89,6 +89,25 @@ async function isPublCorrectionListVersionProduct(productId: number, db: QueryEx
   return isPublCorrectionListProduct(productResult.rows[0]);
 }
 
+async function isChartProduct(productId: number, db: QueryExecutor): Promise<{ isChart: boolean; productName: string }> {
+  const productResult = await db.query(
+    `SELECT type, name
+     FROM products
+     WHERE id = $1`,
+    [productId]
+  );
+
+  if (productResult.rows.length === 0) {
+    throw new Error('Product not found while creating product version');
+  }
+
+  const productType = String(productResult.rows[0].type || '').trim().toLowerCase();
+  return {
+    isChart: productType === 'chart',
+    productName: String(productResult.rows[0].name || '').trim(),
+  };
+}
+
 async function isEncProduct(productId: number, db: QueryExecutor): Promise<boolean> {
   const productResult = await db.query(
     `SELECT type
@@ -213,6 +232,12 @@ export async function generateNextVersionNumber(
     }
 
     return formatEncVersion(1, 0);
+  }
+
+  const { isChart, productName } = await isChartProduct(productId, db);
+
+  if (isChart) {
+    return `${productName}_DD/MM/YYYY`;
   }
 
   const encProduct = await isEncProduct(productId, db);

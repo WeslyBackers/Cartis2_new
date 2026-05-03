@@ -4,6 +4,7 @@ import { authenticate, AuthRequest } from '../middleware/auth.middleware';
 import upload from '../middleware/upload.middleware';
 import { generateNextVersionNumber, getOrCreateInProgressProductVersion } from '../services/productVersion.service';
 import { createCorrectionListPreview, isPublCorrectionListProduct } from '../services/correctionList.service';
+import { createBaz2PublicationPreview } from '../services/baz2Publication.service';
 
 const router = Router();
 
@@ -375,6 +376,26 @@ router.get('/:id/corrections-list', authenticate, async (req, res) => {
     }
 
     console.error('Generate correction list preview error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Generate BaZ-2 publication preview for a product version
+router.get('/:id/baz2-publication', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const preview = await createBaz2PublicationPreview(Number(id), pool);
+    res.json(preview);
+  } catch (error: any) {
+    if (error.message === 'Product version not found') {
+      return res.status(404).json({ error: 'Product version not found' });
+    }
+
+    if (error.message === 'Product version is not BaZ-2') {
+      return res.status(400).json({ error: 'Selected product version is not BaZ-2' });
+    }
+
+    console.error('Generate BaZ-2 publication preview error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

@@ -26,6 +26,17 @@ const sanitizeHtmlForDisplay = (html: string): string => {
     .replace(/\s(href|src)\s*=\s*("|')\s*javascript:[^"']*("|')/gi, '');
 };
 
+// Used for generated publication HTML previews where CSS (tables/lists) must remain intact.
+const sanitizePublicationHtmlForDisplay = (html: string): string => {
+  if (!html) return '';
+
+  return html
+    .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '')
+    .replace(/<(iframe|object|embed)[\s\S]*?>[\s\S]*?<\/\1>/gi, '')
+    .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
+    .replace(/\s(href|src)\s*=\s*("|')\s*javascript:[^"']*("|')/gi, '');
+};
+
 const normalizeValue = (value: string | null | undefined): string =>
   String(value || '')
     .trim()
@@ -74,6 +85,7 @@ export default function PublishedProductVersions() {
   const [colFilterCreatedBy, setColFilterCreatedBy] = useState('');
   const [colFilterNotes, setColFilterNotes] = useState('');
   const [correctionListLanguage, setCorrectionListLanguage] = useState<'nl' | 'en'>('nl');
+  const [baz2PublicationLanguage, setBaz2PublicationLanguage] = useState<'nl' | 'en'>('nl');
   const currentProductionLineId = useAuthStore((state) => state.currentProductionLineId);
 
   useEffect(() => {
@@ -126,6 +138,7 @@ export default function PublishedProductVersions() {
     selectedVersion?.product_code,
     selectedVersion?.product_name
   );
+  const isSelectedVersionBaz2 = String(selectedVersion?.product_code || '').trim().toLowerCase() === 'baz-2';
 
   const { data: correctionListPreview, isLoading: isLoadingCorrectionListPreview } = useQuery({
     queryKey: ['publishedProductVersionCorrectionListPreview', selectedVersionId],
@@ -134,6 +147,15 @@ export default function PublishedProductVersions() {
       return response.data;
     },
     enabled: !!selectedVersionId && !!isSelectedVersionCorrectionList,
+  });
+
+  const { data: baz2PublicationPreview, isLoading: isLoadingBaz2PublicationPreview } = useQuery({
+    queryKey: ['publishedProductVersionBaz2PublicationPreview', selectedVersionId],
+    queryFn: async () => {
+      const response = await api.get(`/product-versions/${selectedVersionId}/baz2-publication`);
+      return response.data;
+    },
+    enabled: !!selectedVersionId && !!isSelectedVersionBaz2,
   });
 
   const filteredVersions = useMemo(() => {
@@ -348,11 +370,74 @@ export default function PublishedProductVersions() {
                   </div>
                   <div
                     style={{ padding: '1rem', backgroundColor: 'white', borderRadius: '6px', border: '1px solid #d8e5f2', maxHeight: '420px', overflow: 'auto' }}
-                    dangerouslySetInnerHTML={{ __html: sanitizeHtmlForDisplay(correctionListPreview[correctionListLanguage]?.html || '') }}
+                    dangerouslySetInnerHTML={{ __html: sanitizePublicationHtmlForDisplay(correctionListPreview[correctionListLanguage]?.html || '') }}
                   />
                 </>
               ) : (
                 <p style={{ margin: 0, color: '#6c757d' }}>{correctionListLanguage === 'en' ? 'No List of Corrections preview available.' : 'Geen verbeterlijstpreview beschikbaar.'}</p>
+              )}
+            </div>
+          )}
+
+          {isSelectedVersionBaz2 && (
+            <div style={{ marginBottom: '1.25rem', padding: '1rem', backgroundColor: '#f8fbff', borderRadius: '8px', border: '1px solid #d8e5f2' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
+                <div>
+                  <h2 style={{ margin: 0, color: '#16324f' }}>{baz2PublicationLanguage === 'en' ? 'BaZ-2 publication preview' : 'BaZ-2 publicatie preview'}</h2>
+                  <div style={{ color: '#516173', fontSize: '0.9rem', marginTop: '0.2rem' }}>
+                    Lijst van MSI-actieve items en volledige BaZ-artikelen voor deze versie.
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <button
+                    type="button"
+                    className="action-btn action-btn--secondary"
+                    onClick={() => setBaz2PublicationLanguage('nl')}
+                    style={{ opacity: baz2PublicationLanguage === 'nl' ? 1 : 0.7 }}
+                  >
+                    Nederlands
+                  </button>
+                  <button
+                    type="button"
+                    className="action-btn action-btn--secondary"
+                    onClick={() => setBaz2PublicationLanguage('en')}
+                    style={{ opacity: baz2PublicationLanguage === 'en' ? 1 : 0.7 }}
+                  >
+                    English
+                  </button>
+                </div>
+              </div>
+
+              {isLoadingBaz2PublicationPreview ? (
+                <p className="loading-text">{baz2PublicationLanguage === 'en' ? 'Loading BaZ-2 publication...' : 'BaZ-2 publicatie laden...'}</p>
+              ) : baz2PublicationPreview ? (
+                <>
+                  <div style={{ marginBottom: '0.75rem', color: '#516173', fontSize: '0.9rem' }}>
+                    MSI actief: <strong>{(baz2PublicationPreview.msiTasks || []).length}</strong> taak/taken
+                  </div>
+                  <div style={{ marginBottom: '0.75rem' }}>
+                    <button
+                      type="button"
+                      className="action-btn action-btn--primary"
+                      onClick={() =>
+                        openCorrectionListPrintPreview({
+                          title: String(baz2PublicationPreview.productName || selectedVersion?.product_name || (baz2PublicationLanguage === 'en' ? 'BaZ-2 publication' : 'BaZ-2 publicatie')),
+                          html: String(baz2PublicationPreview[baz2PublicationLanguage]?.html || ''),
+                          language: baz2PublicationLanguage,
+                        })
+                      }
+                      disabled={!baz2PublicationPreview[baz2PublicationLanguage]?.html}
+                    >
+                      Print A4 (PDF)
+                    </button>
+                  </div>
+                  <div
+                    style={{ padding: '1rem', backgroundColor: 'white', borderRadius: '6px', border: '1px solid #d8e5f2', maxHeight: '420px', overflow: 'auto' }}
+                    dangerouslySetInnerHTML={{ __html: sanitizePublicationHtmlForDisplay(baz2PublicationPreview[baz2PublicationLanguage]?.html || '') }}
+                  />
+                </>
+              ) : (
+                <p style={{ margin: 0, color: '#6c757d' }}>{baz2PublicationLanguage === 'en' ? 'No BaZ-2 publication preview available.' : 'Geen BaZ-2 publicatiepreview beschikbaar.'}</p>
               )}
             </div>
           )}
@@ -380,10 +465,10 @@ export default function PublishedProductVersions() {
                   <tr key={task.id}>
                     <td>
                       <Link
-                        to={`/tasks/${task.id}`}
+                        to={`/tasks?search=${task.task_number}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        style={{ color: '#0066cc', textDecoration: 'underline', fontWeight: 600 }}
+                        className="task-tag"
                       >
                         {task.task_number}
                       </Link>

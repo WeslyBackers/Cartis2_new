@@ -27,6 +27,17 @@ const sanitizeHtmlForDisplay = (html: string): string => {
     .replace(/\s(href|src)\s*=\s*("|')\s*javascript:[^"']*("|')/gi, '');
 };
 
+// Used for generated publication HTML previews where CSS (tables/lists) must remain intact.
+const sanitizePublicationHtmlForDisplay = (html: string): string => {
+  if (!html) return '';
+
+  return html
+    .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '')
+    .replace(/<(iframe|object|embed)[\s\S]*?>[\s\S]*?<\/\1>/gi, '')
+    .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
+    .replace(/\s(href|src)\s*=\s*("|')\s*javascript:[^"']*("|')/gi, '');
+};
+
 const cleanProductDescription = (description: string): string => {
   if (!description) return '';
 
@@ -34,6 +45,9 @@ const cleanProductDescription = (description: string): string => {
     .replace(/^\s*attribute\s*value\s*objnam\s*[:=-]?\s*/i, '')
     .trim();
 };
+
+const includesText = (haystack: string | null | undefined, needle: string): boolean =>
+  String(haystack || '').toLowerCase().includes(String(needle || '').toLowerCase());
 
 const normalizeValue = (value: string | null | undefined): string =>
   String(value || '')
@@ -87,6 +101,14 @@ export default function ProductVersions() {
   const [previewArticle, setPreviewArticle] = useState<any | null>(null);
   const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
   const [correctionListLanguage, setCorrectionListLanguage] = useState<'nl' | 'en'>('nl');
+  const [baz2PublicationLanguage, setBaz2PublicationLanguage] = useState<'nl' | 'en'>('nl');
+  const [colFilterProductCode, setColFilterProductCode] = useState('');
+  const [colFilterProductDescription, setColFilterProductDescription] = useState('');
+  const [colFilterVersionNumber, setColFilterVersionNumber] = useState('');
+  const [colFilterVersionDate, setColFilterVersionDate] = useState('');
+  const [colFilterStatus, setColFilterStatus] = useState('');
+  const [colFilterCreatedBy, setColFilterCreatedBy] = useState('');
+  const [colFilterNotes, setColFilterNotes] = useState('');
   const currentProductionLineId = useAuthStore((state) => state.currentProductionLineId);
   const queryClient = useQueryClient();
 
@@ -216,7 +238,9 @@ export default function ProductVersions() {
         notes: createNotes || null,
       };
 
-      if (!(isPublCreate && (isBaz2Product || isCorrectionListCreate))) {
+      const isChartCreate = isSelectedChart;
+
+      if (!(isPublCreate && (isBaz2Product || isCorrectionListCreate)) && !isChartCreate) {
         payload.versionNumber = composedVersionNumber;
       }
 
@@ -267,6 +291,45 @@ export default function ProductVersions() {
   const openVersions = (versions || []).filter(
     (version: any) => version.status !== 'published' && !isIntegratedCorrectionListCode(version.product_code)
   );
+  const filteredOpenVersions = openVersions.filter((version: any) => {
+    const productCode = String(version.product_code || '');
+    const productDescription = cleanProductDescription(version.product_description || '');
+    const versionNumber = String(version.version_number || '');
+    const versionDate = version.version_date ? format(new Date(version.version_date), 'dd/MM/yyyy') : '';
+    const statusLabel = version.status === 'ready' ? 'Klaar' : 'In Behandeling';
+    const createdBy = String(version.created_by_name || '');
+    const notes = String(version.notes || '');
+
+    if (colFilterProductCode && !includesText(productCode, colFilterProductCode)) return false;
+    if (colFilterProductDescription && !includesText(productDescription, colFilterProductDescription)) return false;
+    if (colFilterVersionNumber && !includesText(versionNumber, colFilterVersionNumber)) return false;
+    if (colFilterVersionDate && !includesText(versionDate, colFilterVersionDate)) return false;
+    if (colFilterStatus && !includesText(statusLabel, colFilterStatus)) return false;
+    if (colFilterCreatedBy && !includesText(createdBy, colFilterCreatedBy)) return false;
+    if (colFilterNotes && !includesText(notes, colFilterNotes)) return false;
+
+    return true;
+  });
+
+  const clearColumnFilters = () => {
+    setColFilterProductCode('');
+    setColFilterProductDescription('');
+    setColFilterVersionNumber('');
+    setColFilterVersionDate('');
+    setColFilterStatus('');
+    setColFilterCreatedBy('');
+    setColFilterNotes('');
+  };
+
+  const hasColumnFilters =
+    !!colFilterProductCode ||
+    !!colFilterProductDescription ||
+    !!colFilterVersionNumber ||
+    !!colFilterVersionDate ||
+    !!colFilterStatus ||
+    !!colFilterCreatedBy ||
+    !!colFilterNotes;
+
   const currentLine = (productionLines || []).find((line: any) => Number(line.id) === Number(currentProductionLineId));
   const isPublLine = (currentLine?.code || '').toUpperCase() === 'PUBL';
   const visibleProducts = (products || []).filter((product: any) => !(isPublLine && isIntegratedCorrectionListCode(product?.code)));
@@ -274,6 +337,7 @@ export default function ProductVersions() {
     selectedVersion?.product_code,
     selectedVersion?.product_name
   );
+  const isSelectedVersionBaz2 = String(selectedVersion?.product_code || '').trim().toLowerCase() === 'baz-2';
 
   const { data: correctionListPreview, isLoading: isLoadingCorrectionListPreview } = useQuery({
     queryKey: ['productVersionCorrectionListPreview', selectedVersionId],
@@ -282,6 +346,15 @@ export default function ProductVersions() {
       return response.data;
     },
     enabled: !!selectedVersionId && !!isSelectedVersionCorrectionList,
+  });
+
+  const { data: baz2PublicationPreview, isLoading: isLoadingBaz2PublicationPreview } = useQuery({
+    queryKey: ['productVersionBaz2PublicationPreview', selectedVersionId],
+    queryFn: async () => {
+      const response = await api.get(`/product-versions/${selectedVersionId}/baz2-publication`);
+      return response.data;
+    },
+    enabled: !!selectedVersionId && !!isSelectedVersionBaz2,
   });
 
   const selectedProductForCreate = visibleProducts.find((product: any) => Number(product.id) === Number(selectedProductIdForCreate));
@@ -299,7 +372,8 @@ export default function ProductVersions() {
     selectedProductForCreate?.code,
     selectedProductForCreate?.name
   );
-  const isSelectedAutoVersionProduct = isSelectedBaz2 || isSelectedLichtenlijst || isSelectedCorrectionList;
+  const isSelectedChart = String(selectedProductForCreate?.type || '').trim().toLowerCase() === 'chart';
+  const isSelectedAutoVersionProduct = isSelectedBaz2 || isSelectedLichtenlijst || isSelectedCorrectionList || isSelectedChart;
 
   const baz2PreviewVersionNumber = (() => {
     if (!isSelectedBaz2 || !selectedProductIdForCreate) return '';
@@ -350,6 +424,12 @@ export default function ProductVersions() {
     }
 
     return `${currentYear}-${String(maxIssue + 1).padStart(2, '0')}`;
+  })();
+
+  const chartPreviewVersionNumber = (() => {
+    if (!isSelectedChart || !selectedProductForCreate) return '';
+    const name = String(selectedProductForCreate.name || '').trim();
+    return `${name}_DD/MM/YYYY`;
   })();
 
   const correctionListPreviewVersionNumber = (() => {
@@ -460,12 +540,16 @@ export default function ProductVersions() {
                 ? 'Versienummer (automatisch voor BaZ-2): '
                 : isSelectedLichtenlijst
                 ? 'Versienummer (automatisch voor Lichtenlijst): '
+                : isSelectedChart
+                ? 'Versienummer (automatisch voor zeekaart): '
                 : 'Versienummer (automatisch voor Verbeterlijst): '}
               <strong>
                 {isSelectedBaz2
                   ? (baz2PreviewVersionNumber || '-')
                   : isSelectedLichtenlijst
                   ? (lichtenlijstPreviewVersionNumber || '-')
+                  : isSelectedChart
+                  ? (chartPreviewVersionNumber || '-')
                   : (correctionListPreviewVersionNumber || '-')}
               </strong>
             </div>
@@ -549,6 +633,14 @@ export default function ProductVersions() {
             {currentLine ? `${currentLine.code} - ${currentLine.name}` : 'Geselecteerde productielijn'}
           </h2>
 
+          {hasColumnFilters && (
+            <div style={{ marginBottom: '0.75rem' }}>
+              <button type="button" className="btn-secondary" onClick={clearColumnFilters}>
+                Kolomfilters wissen
+              </button>
+            </div>
+          )}
+
           <table>
             <thead>
               <tr>
@@ -560,9 +652,83 @@ export default function ProductVersions() {
                 <th>Aangemaakt door</th>
                 <th>Opmerkingen</th>
               </tr>
+              <tr className="col-filter-row">
+                <th style={{ padding: '0.25rem' }}>
+                  <input
+                    type="text"
+                    value={colFilterProductCode}
+                    onChange={(e) => setColFilterProductCode(e.target.value)}
+                    placeholder="Filter"
+                    style={{ width: '100%', fontSize: '0.8rem', padding: '0.2rem 0.4rem' }}
+                  />
+                </th>
+                <th style={{ padding: '0.25rem' }}>
+                  <input
+                    type="text"
+                    value={colFilterProductDescription}
+                    onChange={(e) => setColFilterProductDescription(e.target.value)}
+                    placeholder="Filter"
+                    style={{ width: '100%', fontSize: '0.8rem', padding: '0.2rem 0.4rem' }}
+                  />
+                </th>
+                <th style={{ padding: '0.25rem' }}>
+                  <input
+                    type="text"
+                    value={colFilterVersionNumber}
+                    onChange={(e) => setColFilterVersionNumber(e.target.value)}
+                    placeholder="Filter"
+                    style={{ width: '100%', fontSize: '0.8rem', padding: '0.2rem 0.4rem' }}
+                  />
+                </th>
+                <th style={{ padding: '0.25rem' }}>
+                  <input
+                    type="text"
+                    value={colFilterVersionDate}
+                    onChange={(e) => setColFilterVersionDate(e.target.value)}
+                    placeholder="dd/mm/jjjj"
+                    style={{ width: '100%', fontSize: '0.8rem', padding: '0.2rem 0.4rem' }}
+                  />
+                </th>
+                <th style={{ padding: '0.25rem' }}>
+                  <select
+                    value={colFilterStatus}
+                    onChange={(e) => setColFilterStatus(e.target.value)}
+                    style={{ width: '100%', fontSize: '0.8rem', padding: '0.2rem 0.4rem' }}
+                  >
+                    <option value="">Alle</option>
+                    <option value="klaar">Klaar</option>
+                    <option value="in behandeling">In Behandeling</option>
+                  </select>
+                </th>
+                <th style={{ padding: '0.25rem' }}>
+                  <input
+                    type="text"
+                    value={colFilterCreatedBy}
+                    onChange={(e) => setColFilterCreatedBy(e.target.value)}
+                    placeholder="Filter"
+                    style={{ width: '100%', fontSize: '0.8rem', padding: '0.2rem 0.4rem' }}
+                  />
+                </th>
+                <th style={{ padding: '0.25rem' }}>
+                  <input
+                    type="text"
+                    value={colFilterNotes}
+                    onChange={(e) => setColFilterNotes(e.target.value)}
+                    placeholder="Filter"
+                    style={{ width: '100%', fontSize: '0.8rem', padding: '0.2rem 0.4rem' }}
+                  />
+                </th>
+              </tr>
             </thead>
             <tbody>
-              {openVersions.map((version: any) => (
+              {filteredOpenVersions.length === 0 && (
+                <tr>
+                  <td colSpan={7} style={{ textAlign: 'center', color: '#6c757d' }}>
+                    Geen resultaten voor de actieve kolomfilters.
+                  </td>
+                </tr>
+              )}
+              {filteredOpenVersions.map((version: any) => (
                 <tr
                   key={version.id}
                   onClick={() => setSelectedVersionId(Number(version.id))}
@@ -670,11 +836,74 @@ export default function ProductVersions() {
                   </div>
                   <div
                     style={{ padding: '1rem', backgroundColor: 'white', borderRadius: '6px', border: '1px solid #d8e5f2', maxHeight: '420px', overflow: 'auto' }}
-                    dangerouslySetInnerHTML={{ __html: sanitizeHtmlForDisplay(correctionListPreview[correctionListLanguage]?.html || '') }}
+                    dangerouslySetInnerHTML={{ __html: sanitizePublicationHtmlForDisplay(correctionListPreview[correctionListLanguage]?.html || '') }}
                   />
                 </>
               ) : (
                 <p style={{ margin: 0, color: '#6c757d' }}>{correctionListLanguage === 'en' ? 'No List of Corrections preview available.' : 'Geen verbeterlijstpreview beschikbaar.'}</p>
+              )}
+            </div>
+          )}
+
+          {isSelectedVersionBaz2 && (
+            <div style={{ marginBottom: '1.25rem', padding: '1rem', backgroundColor: '#f8fbff', borderRadius: '8px', border: '1px solid #d8e5f2' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
+                <div>
+                  <h2 style={{ margin: 0, color: '#16324f' }}>{baz2PublicationLanguage === 'en' ? 'BaZ-2 publication preview' : 'BaZ-2 publicatie preview'}</h2>
+                  <div style={{ color: '#516173', fontSize: '0.9rem', marginTop: '0.2rem' }}>
+                    Lijst van MSI-actieve items en volledige BaZ-artikelen voor deze versie.
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <button
+                    type="button"
+                    className="action-btn action-btn--secondary"
+                    onClick={() => setBaz2PublicationLanguage('nl')}
+                    style={{ opacity: baz2PublicationLanguage === 'nl' ? 1 : 0.7 }}
+                  >
+                    Nederlands
+                  </button>
+                  <button
+                    type="button"
+                    className="action-btn action-btn--secondary"
+                    onClick={() => setBaz2PublicationLanguage('en')}
+                    style={{ opacity: baz2PublicationLanguage === 'en' ? 1 : 0.7 }}
+                  >
+                    English
+                  </button>
+                </div>
+              </div>
+
+              {isLoadingBaz2PublicationPreview ? (
+                <p className="loading-text">{baz2PublicationLanguage === 'en' ? 'Loading BaZ-2 publication...' : 'BaZ-2 publicatie laden...'}</p>
+              ) : baz2PublicationPreview ? (
+                <>
+                  <div style={{ marginBottom: '0.75rem', color: '#516173', fontSize: '0.9rem' }}>
+                    MSI actief: <strong>{(baz2PublicationPreview.msiTasks || []).length}</strong> taak/taken
+                  </div>
+                  <div style={{ marginBottom: '0.75rem' }}>
+                    <button
+                      type="button"
+                      className="action-btn action-btn--primary"
+                      onClick={() =>
+                        openCorrectionListPrintPreview({
+                          title: String(baz2PublicationPreview.productName || selectedVersion?.product_name || (baz2PublicationLanguage === 'en' ? 'BaZ-2 publication' : 'BaZ-2 publicatie')),
+                          html: String(baz2PublicationPreview[baz2PublicationLanguage]?.html || ''),
+                          language: baz2PublicationLanguage,
+                        })
+                      }
+                      disabled={!baz2PublicationPreview[baz2PublicationLanguage]?.html}
+                    >
+                      Print A4 (PDF)
+                    </button>
+                  </div>
+                  <div
+                    style={{ padding: '1rem', backgroundColor: 'white', borderRadius: '6px', border: '1px solid #d8e5f2', maxHeight: '420px', overflow: 'auto' }}
+                    dangerouslySetInnerHTML={{ __html: sanitizePublicationHtmlForDisplay(baz2PublicationPreview[baz2PublicationLanguage]?.html || '') }}
+                  />
+                </>
+              ) : (
+                <p style={{ margin: 0, color: '#6c757d' }}>{baz2PublicationLanguage === 'en' ? 'No BaZ-2 publication preview available.' : 'Geen BaZ-2 publicatiepreview beschikbaar.'}</p>
               )}
             </div>
           )}
@@ -816,10 +1045,10 @@ export default function ProductVersions() {
                   <tr key={task.id}>
                     <td>
                       <Link
-                        to={`/tasks/${task.id}`}
+                        to={`/tasks?search=${task.task_number}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        style={{ color: '#0066cc', textDecoration: 'underline', fontWeight: 600 }}
+                        className="task-tag"
                       >
                         {task.task_number}
                       </Link>
