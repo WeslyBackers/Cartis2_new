@@ -396,11 +396,11 @@ export default function Tasks() {
     e.stopPropagation();
 
     if (product?.productVersionId) {
-      navigate(`/product-versions?versionId=${product.productVersionId}`);
+      window.open(`/product-versions?versionId=${product.productVersionId}`, '_blank', 'noopener,noreferrer');
       return;
     }
 
-    navigate('/product-versions');
+    window.open('/product-versions', '_blank', 'noopener,noreferrer');
   };
 
   const toggleWaitForZkMutation = useMutation({

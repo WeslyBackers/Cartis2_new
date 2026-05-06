@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
 import api from '../services/api';
@@ -88,9 +88,14 @@ const isIntegratedCorrectionListCode = (code: string | null | undefined): boolea
 };
 
 export default function ProductVersions() {
+  const MIN_PRODUCTS_LIST_HEIGHT = 220;
+  const MIN_DETAILS_SECTION_HEIGHT = 260;
+  const SPLITTER_HEIGHT = 14;
   const [searchParams] = useSearchParams();
   const [isCreateVersionCollapsed, setIsCreateVersionCollapsed] = useState(true);
   const [selectedVersionId, setSelectedVersionId] = useState<number | null>(null);
+  const [productsListHeight, setProductsListHeight] = useState(320);
+  const [isResizingSections, setIsResizingSections] = useState(false);
   const [newEditionOnPublish, setNewEditionOnPublish] = useState(false);
   const [publishDateOnPublish, setPublishDateOnPublish] = useState('');
   const [selectedProductIdForCreate, setSelectedProductIdForCreate] = useState<number | null>(null);
@@ -109,6 +114,7 @@ export default function ProductVersions() {
   const [colFilterStatus, setColFilterStatus] = useState('');
   const [colFilterCreatedBy, setColFilterCreatedBy] = useState('');
   const [colFilterNotes, setColFilterNotes] = useState('');
+  const resizeStartRef = useRef<{ startY: number; startHeight: number } | null>(null);
   const currentProductionLineId = useAuthStore((state) => state.currentProductionLineId);
   const queryClient = useQueryClient();
 
@@ -133,6 +139,44 @@ export default function ProductVersions() {
       setSelectedVersionId(parsedVersionId);
     }
   }, [searchParams]);
+
+  useEffect(() => {
+    if (!isResizingSections) {
+      return;
+    }
+
+    const handleMouseMove = (event: MouseEvent) => {
+      if (!resizeStartRef.current) {
+        return;
+      }
+
+      const totalResizableHeight = Math.max(560, Math.round(window.innerHeight * 0.75));
+      const maxProductsListHeight = Math.max(
+        MIN_PRODUCTS_LIST_HEIGHT,
+        totalResizableHeight - MIN_DETAILS_SECTION_HEIGHT - SPLITTER_HEIGHT
+      );
+      const nextHeight = resizeStartRef.current.startHeight + (event.clientY - resizeStartRef.current.startY);
+
+      setProductsListHeight(Math.min(maxProductsListHeight, Math.max(MIN_PRODUCTS_LIST_HEIGHT, nextHeight)));
+    };
+
+    const handleMouseUp = () => {
+      setIsResizingSections(false);
+      resizeStartRef.current = null;
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    document.body.style.cursor = 'row-resize';
+    document.body.style.userSelect = 'none';
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+  }, [isResizingSections]);
 
   const { data: productionLines } = useQuery({
     queryKey: ['productionLinesForProductVersions'],
@@ -329,6 +373,21 @@ export default function ProductVersions() {
     !!colFilterStatus ||
     !!colFilterCreatedBy ||
     !!colFilterNotes;
+
+  const totalResizableHeight = Math.max(560, Math.round(window.innerHeight * 0.75));
+  const detailsSectionHeight = Math.max(
+    MIN_DETAILS_SECTION_HEIGHT,
+    totalResizableHeight - productsListHeight - SPLITTER_HEIGHT
+  );
+
+  const startSectionResize = (event: any) => {
+    resizeStartRef.current = {
+      startY: event.clientY,
+      startHeight: productsListHeight,
+    };
+    setIsResizingSections(true);
+    event.preventDefault();
+  };
 
   const currentLine = (productionLines || []).find((line: any) => Number(line.id) === Number(currentProductionLineId));
   const isPublLine = (currentLine?.code || '').toUpperCase() === 'PUBL';
@@ -627,6 +686,8 @@ export default function ProductVersions() {
             padding: '1rem',
             borderRadius: '8px',
             boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+            height: selectedVersionId ? `${productsListHeight}px` : undefined,
+            overflow: selectedVersionId ? 'auto' : undefined,
           }}
         >
           <h2 style={{ marginBottom: '0.75rem', color: '#343a40' }}>
@@ -774,12 +835,42 @@ export default function ProductVersions() {
 
       {selectedVersionId && (
         <div
+          role="separator"
+          aria-orientation="horizontal"
+          aria-label="Hoogte aanpassen tussen productlijst en gekoppelde taken"
+          onMouseDown={startSectionResize}
           style={{
-            marginTop: '1.5rem',
+            height: `${SPLITTER_HEIGHT}px`,
+            marginTop: '0.75rem',
+            marginBottom: '0.75rem',
+            cursor: 'row-resize',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            userSelect: 'none',
+          }}
+        >
+          <div
+            style={{
+              width: '100%',
+              height: '4px',
+              borderRadius: '999px',
+              background: isResizingSections ? '#7aa7d9' : '#d8e5f2',
+              boxShadow: isResizingSections ? '0 0 0 1px #7aa7d9' : undefined,
+            }}
+          />
+        </div>
+      )}
+
+      {selectedVersionId && (
+        <div
+          style={{
             backgroundColor: 'white',
             padding: '1rem',
             borderRadius: '8px',
             boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+            height: `${detailsSectionHeight}px`,
+            overflow: 'auto',
           }}
         >
           {isSelectedVersionCorrectionList && (
@@ -908,70 +999,13 @@ export default function ProductVersions() {
             </div>
           )}
 
-          <h2 style={{ marginBottom: '0.75rem', color: '#343a40' }}>Bijlagen productversie</h2>
-
-          <div style={{ marginBottom: '1rem', padding: '0.75rem', backgroundColor: '#f8f9fa', borderRadius: '6px', border: '1px solid #e9ecef' }}>
-            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
-              <input
-                type="file"
-                onChange={(e) => setAttachmentFile(e.target.files?.[0] || null)}
-                disabled={uploadAttachmentMutation.isPending}
-              />
-              <button
-                type="button"
-                className="btn-success"
-                onClick={() => {
-                  if (!attachmentFile) {
-                    alert('Selecteer eerst een bestand');
-                    return;
-                  }
-                  uploadAttachmentMutation.mutate(attachmentFile);
-                }}
-                disabled={uploadAttachmentMutation.isPending || !attachmentFile}
-              >
-                {uploadAttachmentMutation.isPending ? 'Uploaden...' : 'Bijlage uploaden'}
-              </button>
-            </div>
-          </div>
-
-          {isLoadingVersionAttachments ? (
-            <p className="loading-text">Bijlagen laden...</p>
-          ) : !versionAttachments || versionAttachments.length === 0 ? (
-            <p style={{ marginTop: 0, marginBottom: '1rem', color: '#6c757d' }}>Nog geen bijlagen voor deze productversie.</p>
-          ) : (
-            <table style={{ marginBottom: '1.25rem' }}>
-              <thead>
-                <tr>
-                  <th>Bestandsnaam</th>
-                  <th>Type</th>
-                  <th>Grootte</th>
-                  <th>Geüpload door</th>
-                  <th>Datum</th>
-                  <th>Actie</th>
-                </tr>
-              </thead>
-              <tbody>
-                {versionAttachments.map((attachment: any) => (
-                  <tr key={attachment.id}>
-                    <td>{attachment.original_filename}</td>
-                    <td>{attachment.file_type || '-'}</td>
-                    <td>{attachment.file_size ? `${(attachment.file_size / 1024).toFixed(1)} KB` : '-'}</td>
-                    <td>{attachment.first_name ? `${attachment.first_name} ${attachment.last_name || ''}`.trim() : '-'}</td>
-                    <td>{attachment.created_at ? format(new Date(attachment.created_at), 'dd/MM/yyyy HH:mm') : '-'}</td>
-                    <td>
-                      <button
-                        type="button"
-                        className="action-btn action-btn--primary"
-                        onClick={() => handleDownloadVersionAttachment(attachment.id, attachment.original_filename)}
-                      >
-                        Download
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+          <div
+            aria-hidden="true"
+            style={{
+              margin: '1.5rem 0',
+              borderTop: '1px solid #d8e5f2',
+            }}
+          />
 
           <h2 style={{ marginBottom: '0.75rem', color: '#343a40' }}>
             Gekoppelde taken
@@ -1113,6 +1147,79 @@ export default function ProductVersions() {
                       </select>
                     </td>
                     <td>{task.notes || '-'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+
+          <div
+            aria-hidden="true"
+            style={{
+              margin: '1.5rem 0',
+              borderTop: '1px solid #d8e5f2',
+            }}
+          />
+
+          <h2 style={{ marginBottom: '0.75rem', color: '#343a40' }}>Bijlagen productversie</h2>
+
+          <div style={{ marginBottom: '1rem', padding: '0.75rem', backgroundColor: '#f8f9fa', borderRadius: '6px', border: '1px solid #e9ecef' }}>
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+              <input
+                type="file"
+                onChange={(e) => setAttachmentFile(e.target.files?.[0] || null)}
+                disabled={uploadAttachmentMutation.isPending}
+              />
+              <button
+                type="button"
+                className="btn-success"
+                onClick={() => {
+                  if (!attachmentFile) {
+                    alert('Selecteer eerst een bestand');
+                    return;
+                  }
+                  uploadAttachmentMutation.mutate(attachmentFile);
+                }}
+                disabled={uploadAttachmentMutation.isPending || !attachmentFile}
+              >
+                {uploadAttachmentMutation.isPending ? 'Uploaden...' : 'Bijlage uploaden'}
+              </button>
+            </div>
+          </div>
+
+          {isLoadingVersionAttachments ? (
+            <p className="loading-text">Bijlagen laden...</p>
+          ) : !versionAttachments || versionAttachments.length === 0 ? (
+            <p style={{ marginTop: 0, marginBottom: '1rem', color: '#6c757d' }}>Nog geen bijlagen voor deze productversie.</p>
+          ) : (
+            <table style={{ marginBottom: '1.25rem' }}>
+              <thead>
+                <tr>
+                  <th>Bestandsnaam</th>
+                  <th>Type</th>
+                  <th>Grootte</th>
+                  <th>Geüpload door</th>
+                  <th>Datum</th>
+                  <th>Actie</th>
+                </tr>
+              </thead>
+              <tbody>
+                {versionAttachments.map((attachment: any) => (
+                  <tr key={attachment.id}>
+                    <td>{attachment.original_filename}</td>
+                    <td>{attachment.file_type || '-'}</td>
+                    <td>{attachment.file_size ? `${(attachment.file_size / 1024).toFixed(1)} KB` : '-'}</td>
+                    <td>{attachment.first_name ? `${attachment.first_name} ${attachment.last_name || ''}`.trim() : '-'}</td>
+                    <td>{attachment.created_at ? format(new Date(attachment.created_at), 'dd/MM/yyyy HH:mm') : '-'}</td>
+                    <td>
+                      <button
+                        type="button"
+                        className="action-btn action-btn--primary"
+                        onClick={() => handleDownloadVersionAttachment(attachment.id, attachment.original_filename)}
+                      >
+                        Download
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
