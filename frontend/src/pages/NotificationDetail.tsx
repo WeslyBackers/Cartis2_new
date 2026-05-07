@@ -56,6 +56,23 @@ const extractEmailAddress = (value: string): string => {
   return match ? match[0] : '';
 };
 
+const toDateInputValue = (value: any): string => {
+  if (!value) return '';
+
+  const raw = String(value).trim();
+  const isoDatePrefix = raw.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (isoDatePrefix) {
+    return isoDatePrefix[1];
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return '';
+  }
+
+  return format(parsed, 'yyyy-MM-dd');
+};
+
 const buildNotificationInfoRequestDraft = (notification: any) => {
   const subject =
     notification?.title?.trim() ||
@@ -556,6 +573,14 @@ export default function NotificationDetail() {
   const [notes, setNotes] = useState('');
   const [opmerkingen, setOpmerkingen] = useState('');
   const [isEditingOpmerkingen, setIsEditingOpmerkingen] = useState(false);
+  const [isEditingBasisinformatie, setIsEditingBasisinformatie] = useState(false);
+  const [basisinformatieForm, setBasisinformatieForm] = useState({
+    code: '',
+    title: '',
+    notificationDate: '',
+    source: '',
+    sourceDetail: '',
+  });
   const [collapsedProductionLines, setCollapsedProductionLines] = useState<Set<number>>(new Set());
   const [collapsedActivities, setCollapsedActivities] = useState(false);
   const [isEmailFormVisible, setIsEmailFormVisible] = useState(false);
@@ -640,7 +665,7 @@ export default function NotificationDetail() {
     return () => {
       observer.disconnect();
     };
-  }, [isEditingOpmerkingen, opmerkingen]);
+  }, [isEditingOpmerkingen, opmerkingen, isEditingBasisinformatie]);
 
   const { data: notification, isLoading } = useQuery({
     queryKey: ['notification', id],
@@ -654,6 +679,13 @@ export default function NotificationDetail() {
   useEffect(() => {
     if (notification) {
       setOpmerkingen(notification.opmerkingen || '');
+      setBasisinformatieForm({
+        code: notification.code || '',
+        title: notification.title || '',
+        notificationDate: toDateInputValue(notification.notification_date),
+        source: notification.source || '',
+        sourceDetail: notification.source_detail || '',
+      });
     }
   }, [notification]);
 
@@ -744,6 +776,36 @@ export default function NotificationDetail() {
     onError: (error: any) => {
       console.error('Error updating opmerkingen:', error);
       alert(`Fout bij opslaan opmerkingen: ${getApiErrorMessage(error, 'onbekende fout')}`);
+    },
+  });
+
+  const updateBasisinformatieMutation = useMutation({
+    mutationFn: async () => {
+      if (!notification) {
+        throw new Error('Melding niet geladen');
+      }
+
+      await api.put(`/notifications/${id}`, {
+        code: basisinformatieForm.code.trim(),
+        title: basisinformatieForm.title.trim(),
+        content: notification.content,
+        source: basisinformatieForm.source.trim(),
+        sourceDetail: basisinformatieForm.sourceDetail.trim(),
+        notificationDate: basisinformatieForm.notificationDate || null,
+        geometry: notification.geometry,
+        metadata: notification.metadata,
+        opmerkingen: opmerkingen,
+      });
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['notification', id] });
+      await queryClient.refetchQueries({ queryKey: ['notification', id] });
+      setIsEditingBasisinformatie(false);
+      alert('Basisinformatie succesvol opgeslagen!');
+    },
+    onError: (error: any) => {
+      console.error('Error updating basisinformatie:', error);
+      alert(`Fout bij opslaan basisinformatie: ${getApiErrorMessage(error, 'onbekende fout')}`);
     },
   });
 
@@ -1162,27 +1224,93 @@ export default function NotificationDetail() {
         <div style={{ width: isRightPaneCollapsed ? '100%' : `${leftWidth}%`, minWidth: '300px', paddingRight: isRightPaneCollapsed ? '0' : '1rem' }}>
           {/* Basisinformatie */}
           <div ref={basisinformatieRef} style={{ backgroundColor: 'white', padding: '1.5rem', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', color: '#343a40', marginBottom: '1.5rem' }}>
-            <h2 style={{ marginBottom: '1rem', color: '#343a40' }}>Basisinformatie</h2>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+              <h2 style={{ margin: 0, color: '#343a40' }}>Basisinformatie</h2>
+              {isEditingBasisinformatie ? (
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <button
+                    type="button"
+                    className="btn-success btn-sm"
+                    onClick={() => updateBasisinformatieMutation.mutate()}
+                    disabled={updateBasisinformatieMutation.isPending}
+                  >
+                    {updateBasisinformatieMutation.isPending ? 'Opslaan...' : 'Opslaan'}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-secondary btn-sm"
+                    onClick={() => {
+                      setBasisinformatieForm({
+                        code: notification.code || '',
+                        title: notification.title || '',
+                        notificationDate: toDateInputValue(notification.notification_date),
+                        source: notification.source || '',
+                        sourceDetail: notification.source_detail || '',
+                      });
+                      setIsEditingBasisinformatie(false);
+                    }}
+                    disabled={updateBasisinformatieMutation.isPending}
+                  >
+                    Annuleren
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  className="btn-secondary btn-sm"
+                  onClick={() => setIsEditingBasisinformatie(true)}
+                >
+                  Bewerk
+                </button>
+              )}
+            </div>
             
             <div style={{ display: 'grid', gap: '1rem' }}>
               <div>
                 <label style={{ fontWeight: 'bold', color: '#6c757d', display: 'block', marginBottom: '0.25rem' }}>Code</label>
-                <div style={{ color: '#343a40', fontSize: '1.1rem', fontWeight: '600' }}>{notification.code || '-'}</div>
+                {isEditingBasisinformatie ? (
+                  <input
+                    type="text"
+                    value={basisinformatieForm.code}
+                    onChange={(e) => setBasisinformatieForm((prev) => ({ ...prev, code: e.target.value }))}
+                    style={{ width: '100%' }}
+                  />
+                ) : (
+                  <div style={{ color: '#343a40', fontSize: '1.1rem', fontWeight: '600' }}>{notification.code || '-'}</div>
+                )}
               </div>
 
               <div>
                 <label style={{ fontWeight: 'bold', color: '#6c757d', display: 'block', marginBottom: '0.25rem' }}>Omschrijving/Titel</label>
-                <div style={{ color: '#343a40', fontSize: '1.1rem' }}>{notification.title}</div>
+                {isEditingBasisinformatie ? (
+                  <input
+                    type="text"
+                    value={basisinformatieForm.title}
+                    onChange={(e) => setBasisinformatieForm((prev) => ({ ...prev, title: e.target.value }))}
+                    style={{ width: '100%' }}
+                  />
+                ) : (
+                  <div style={{ color: '#343a40', fontSize: '1.1rem' }}>{notification.title}</div>
+                )}
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                 <div>
                   <label style={{ fontWeight: 'bold', color: '#6c757d', display: 'block', marginBottom: '0.25rem' }}>Datum Bericht</label>
-                  <div style={{ color: '#343a40' }}>
-                    {notification.notification_date 
-                      ? format(new Date(notification.notification_date), 'dd/MM/yyyy')
-                      : '-'}
-                  </div>
+                  {isEditingBasisinformatie ? (
+                    <input
+                      type="date"
+                      value={basisinformatieForm.notificationDate}
+                      onChange={(e) => setBasisinformatieForm((prev) => ({ ...prev, notificationDate: e.target.value }))}
+                      style={{ width: '100%' }}
+                    />
+                  ) : (
+                    <div style={{ color: '#343a40' }}>
+                      {notification.notification_date 
+                        ? format(new Date(notification.notification_date), 'dd/MM/yyyy')
+                        : '-'}
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -1198,12 +1326,30 @@ export default function NotificationDetail() {
 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                 <div>
                   <label style={{ fontWeight: 'bold', color: '#6c757d', display: 'block', marginBottom: '0.25rem' }}>Bron</label>
-                  <div style={{ color: '#343a40' }}>{notification.source || '-'}</div>
+                  {isEditingBasisinformatie ? (
+                    <input
+                      type="text"
+                      value={basisinformatieForm.source}
+                      onChange={(e) => setBasisinformatieForm((prev) => ({ ...prev, source: e.target.value }))}
+                      style={{ width: '100%' }}
+                    />
+                  ) : (
+                    <div style={{ color: '#343a40' }}>{notification.source || '-'}</div>
+                  )}
                 </div>
 
                 <div>
                   <label style={{ fontWeight: 'bold', color: '#6c757d', display: 'block', marginBottom: '0.25rem' }}>Bron Detail</label>
-                  <div style={{ color: '#343a40' }}>{notification.source_detail || '-'}</div>
+                  {isEditingBasisinformatie ? (
+                    <input
+                      type="text"
+                      value={basisinformatieForm.sourceDetail}
+                      onChange={(e) => setBasisinformatieForm((prev) => ({ ...prev, sourceDetail: e.target.value }))}
+                      style={{ width: '100%' }}
+                    />
+                  ) : (
+                    <div style={{ color: '#343a40' }}>{notification.source_detail || '-'}</div>
+                  )}
                 </div>
               </div>
 
@@ -2276,9 +2422,9 @@ export default function NotificationDetail() {
               )}
             </div>
             
-            {geometry ? (
+            {(
               <>
-                {geometry.type === 'Point' && (
+                {geometry && geometry.type === 'Point' && (
                   <div style={{ marginBottom: '1rem', padding: '0.75rem', backgroundColor: '#f8f9fa', borderRadius: '4px', color: '#343a40' }}>
                     <div style={{ fontWeight: 'bold', marginBottom: '0.25rem' }}>Coördinaten</div>
                     <div style={{ fontFamily: 'monospace', fontSize: '0.95rem' }}>
@@ -3557,27 +3703,14 @@ export default function NotificationDetail() {
                   </div>
                 )}
                 
-                <div style={{ marginTop: '1rem', fontSize: '0.9rem', color: '#6c757d' }}>
-                  <strong>Type:</strong> {geometry.type}
-                  {geometry.type === 'LineString' && ` (${geometry.coordinates.length} punten)`}
-                  {geometry.type === 'Polygon' && ` (${geometry.coordinates[0].length} hoekpunten)`}
-                </div>
+                {geometry && (
+                  <div style={{ marginTop: '1rem', fontSize: '0.9rem', color: '#6c757d' }}>
+                    <strong>Type:</strong> {geometry.type}
+                    {geometry.type === 'LineString' && ` (${geometry.coordinates.length} punten)`}
+                    {geometry.type === 'Polygon' && ` (${geometry.coordinates[0].length} hoekpunten)`}
+                  </div>
+                )}
               </>
-            ) : (
-              <div style={{ 
-                height: '700px', 
-                display: 'flex', 
-                alignItems: 'center', 
-                justifyContent: 'center',
-                backgroundColor: '#f8f9fa',
-                borderRadius: '4px',
-                color: '#6c757d'
-              }}>
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📍</div>
-                  <div>Geen geografische locatie beschikbaar</div>
-                </div>
-              </div>
             )}
           </div>
 
