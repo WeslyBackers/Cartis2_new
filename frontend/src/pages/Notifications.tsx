@@ -214,6 +214,33 @@ const plainTextToHtml = (value: string): string => {
     .join('');
 };
 
+const parseNotificationDateValue = (value: any): Date | null => {
+  if (!value) return null;
+
+  const raw = String(value).trim();
+  const exactIsoDate = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (exactIsoDate) {
+    const [, year, month, day] = exactIsoDate;
+    return new Date(Number(year), Number(month) - 1, Number(day));
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+
+  return parsed;
+};
+
+const normalizeDateForFilter = (value: any): string => {
+  const parsed = parseNotificationDateValue(value);
+  if (!parsed) {
+    return '';
+  }
+
+  return format(parsed, 'dd-MM-yyyy');
+};
+
 const extractRenderableGeometries = (geojson: any): any[] => {
   if (!geojson) return [];
 
@@ -630,6 +657,7 @@ export default function Notifications() {
   
   // Column filters (inline, client-side)
   const [colFilterCode, setColFilterCode] = useState('');
+  const [colFilterDatePicker, setColFilterDatePicker] = useState('');
   const [colFilterDate, setColFilterDate] = useState('');
   const [colFilterTitle, setColFilterTitle] = useState('');
   const [colFilterContent, setColFilterContent] = useState('');
@@ -729,8 +757,8 @@ export default function Notifications() {
     return sortedData.filter((n: any) => {
       if (colFilterCode && !(n.code || '').toLowerCase().includes(colFilterCode.toLowerCase())) return false;
       if (colFilterDate) {
-        const dateStr = n.notification_date ? format(new Date(n.notification_date), 'dd/MM/yyyy') : '';
-        if (!dateStr.includes(colFilterDate)) return false;
+        const dateValue = normalizeDateForFilter(n.notification_date);
+        if (dateValue !== colFilterDate) return false;
       }
       if (colFilterTitle && !(n.title || '').toLowerCase().includes(colFilterTitle.toLowerCase())) return false;
       if (colFilterContent) {
@@ -1196,6 +1224,7 @@ export default function Notifications() {
 
   const clearColumnFilters = () => {
     setColFilterCode('');
+    setColFilterDatePicker('');
     setColFilterDate('');
     setColFilterTitle('');
     setColFilterContent('');
@@ -1438,7 +1467,23 @@ export default function Notifications() {
                   <input type="text" value={colFilterCode} onChange={e => setColFilterCode(e.target.value)} placeholder="Code" style={{ width: '100%', fontSize: '0.8rem', padding: '0.2rem 0.4rem' }} />
                 </th>
                 <th style={{ padding: '0.25rem' }}>
-                  <input type="text" value={colFilterDate} onChange={e => setColFilterDate(e.target.value)} placeholder="dd/mm/jjjj" style={{ width: '100%', fontSize: '0.8rem', padding: '0.2rem 0.4rem' }} />
+                  <input
+                    type="date"
+                    value={colFilterDatePicker}
+                    onChange={e => {
+                      const pickerValue = e.target.value;
+                      setColFilterDatePicker(pickerValue);
+
+                      if (!pickerValue) {
+                        setColFilterDate('');
+                        return;
+                      }
+
+                      const [year, month, day] = pickerValue.split('-');
+                      setColFilterDate(`${day}-${month}-${year}`);
+                    }}
+                    style={{ width: '100%', fontSize: '0.8rem', padding: '0.2rem 0.4rem' }}
+                  />
                 </th>
                 <th style={{ padding: '0.25rem', display: 'none' }}></th>
                 <th style={{ padding: '0.25rem' }}>
@@ -1524,7 +1569,7 @@ export default function Notifications() {
                       </td>
                       <td onClick={() => toggleExpand(notification.id)}>
                         {notification.notification_date
-                          ? format(new Date(notification.notification_date), 'dd/MM/yyyy')
+                          ? format(parseNotificationDateValue(notification.notification_date) || new Date(notification.notification_date), 'dd/MM/yyyy')
                           : '-'}
                       </td>
                       <td onClick={() => toggleExpand(notification.id)} style={{ display: 'none' }}>
@@ -1634,14 +1679,14 @@ export default function Notifications() {
                             href={`/notifications/${notification.id}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="action-btn action-btn--primary"
+                            className="action-btn action-btn--info"
                             title="Open detail pagina in nieuw tabblad"
                           >
                             Details
                           </a>
                           <button
                             onClick={() => exportNotificationToGML(notification)}
-                            className="action-btn action-btn--success"
+                            className="action-btn action-btn--info"
                             title="Exporteer alle geometrieën naar GML formaat"
                           >
                             GML
@@ -2705,7 +2750,7 @@ export default function Notifications() {
                   <label style={{ fontWeight: 'bold', color: '#6c757d', display: 'block', marginBottom: '0.25rem', fontSize: '0.9rem' }}>Datum Bericht</label>
                   <div style={{ color: '#343a40' }}>
                     {notification.notification_date 
-                      ? format(new Date(notification.notification_date), 'dd/MM/yyyy')
+                      ? format(parseNotificationDateValue(notification.notification_date) || new Date(notification.notification_date), 'dd/MM/yyyy')
                       : '-'}
                   </div>
                 </div>

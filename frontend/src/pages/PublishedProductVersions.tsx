@@ -75,12 +75,38 @@ const isIntegratedCorrectionListCode = (code: string | null | undefined): boolea
   return false;
 };
 
+const parseVersionDateValue = (value: any): Date | null => {
+  if (!value) return null;
+
+  const raw = String(value).trim();
+  const exactIsoDate = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (exactIsoDate) {
+    const [, year, month, day] = exactIsoDate;
+    return new Date(Number(year), Number(month) - 1, Number(day));
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+
+  return parsed;
+};
+
+const normalizeVersionDateForFilter = (value: any): string => {
+  const parsed = parseVersionDateValue(value);
+  if (!parsed) return '';
+  return format(parsed, 'dd-MM-yyyy');
+};
+
 export default function PublishedProductVersions() {
   const [selectedVersionId, setSelectedVersionId] = useState<number | null>(null);
   const [previewArticle, setPreviewArticle] = useState<any | null>(null);
   const [colFilterProduct, setColFilterProduct] = useState('');
   const [colFilterVersionNumber, setColFilterVersionNumber] = useState('');
+  const [colFilterVersionDatePicker, setColFilterVersionDatePicker] = useState('');
   const [colFilterVersionDate, setColFilterVersionDate] = useState('');
+  const [colFilterPublicationDatePicker, setColFilterPublicationDatePicker] = useState('');
   const [colFilterPublicationDate, setColFilterPublicationDate] = useState('');
   const [colFilterCreatedBy, setColFilterCreatedBy] = useState('');
   const [colFilterNotes, setColFilterNotes] = useState('');
@@ -170,11 +196,11 @@ export default function PublishedProductVersions() {
 
       if (colFilterVersionNumber && !includesText(version.version_number || '', colFilterVersionNumber)) return false;
 
-      const versionDateText = version.version_date ? format(new Date(version.version_date), 'dd/MM/yyyy') : '-';
-      if (colFilterVersionDate && !includesText(versionDateText, colFilterVersionDate)) return false;
+      const versionDateText = normalizeVersionDateForFilter(version.version_date);
+      if (colFilterVersionDate && versionDateText !== colFilterVersionDate) return false;
 
-      const publicationDateText = version.publication_date ? format(new Date(version.publication_date), 'dd/MM/yyyy') : '-';
-      if (colFilterPublicationDate && !includesText(publicationDateText, colFilterPublicationDate)) return false;
+      const publicationDateText = normalizeVersionDateForFilter(version.publication_date);
+      if (colFilterPublicationDate && publicationDateText !== colFilterPublicationDate) return false;
 
       if (colFilterCreatedBy && !includesText(version.created_by_name || '-', colFilterCreatedBy)) return false;
       if (colFilterNotes && !includesText(version.notes || '-', colFilterNotes)) return false;
@@ -194,7 +220,9 @@ export default function PublishedProductVersions() {
   const clearColumnFilters = () => {
     setColFilterProduct('');
     setColFilterVersionNumber('');
+    setColFilterVersionDatePicker('');
     setColFilterVersionDate('');
+    setColFilterPublicationDatePicker('');
     setColFilterPublicationDate('');
     setColFilterCreatedBy('');
     setColFilterNotes('');
@@ -266,10 +294,42 @@ export default function PublishedProductVersions() {
                   <input value={colFilterVersionNumber} onChange={(e) => setColFilterVersionNumber(e.target.value)} placeholder="Filter" style={{ width: '100%' }} />
                 </th>
                 <th>
-                  <input value={colFilterVersionDate} onChange={(e) => setColFilterVersionDate(e.target.value)} placeholder="Filter" style={{ width: '100%' }} />
+                  <input
+                    type="date"
+                    value={colFilterVersionDatePicker}
+                    onChange={(e) => {
+                      const pickerValue = e.target.value;
+                      setColFilterVersionDatePicker(pickerValue);
+
+                      if (!pickerValue) {
+                        setColFilterVersionDate('');
+                        return;
+                      }
+
+                      const [year, month, day] = pickerValue.split('-');
+                      setColFilterVersionDate(`${day}-${month}-${year}`);
+                    }}
+                    style={{ width: '100%' }}
+                  />
                 </th>
                 <th>
-                  <input value={colFilterPublicationDate} onChange={(e) => setColFilterPublicationDate(e.target.value)} placeholder="Filter" style={{ width: '100%' }} />
+                  <input
+                    type="date"
+                    value={colFilterPublicationDatePicker}
+                    onChange={(e) => {
+                      const pickerValue = e.target.value;
+                      setColFilterPublicationDatePicker(pickerValue);
+
+                      if (!pickerValue) {
+                        setColFilterPublicationDate('');
+                        return;
+                      }
+
+                      const [year, month, day] = pickerValue.split('-');
+                      setColFilterPublicationDate(`${day}-${month}-${year}`);
+                    }}
+                    style={{ width: '100%' }}
+                  />
                 </th>
                 <th>
                   <input value={colFilterCreatedBy} onChange={(e) => setColFilterCreatedBy(e.target.value)} placeholder="Filter" style={{ width: '100%' }} />
@@ -295,8 +355,8 @@ export default function PublishedProductVersions() {
                   <td>
                     <strong>{version.version_number}</strong>
                   </td>
-                  <td>{version.version_date ? format(new Date(version.version_date), 'dd/MM/yyyy') : '-'}</td>
-                  <td>{version.publication_date ? format(new Date(version.publication_date), 'dd/MM/yyyy') : '-'}</td>
+                  <td>{version.version_date ? format(parseVersionDateValue(version.version_date) || new Date(version.version_date), 'dd/MM/yyyy') : '-'}</td>
+                  <td>{version.publication_date ? format(parseVersionDateValue(version.publication_date) || new Date(version.publication_date), 'dd/MM/yyyy') : '-'}</td>
                   <td>{version.created_by_name || '-'}</td>
                   <td>{version.notes || '-'}</td>
                 </tr>

@@ -87,6 +87,30 @@ const isIntegratedCorrectionListCode = (code: string | null | undefined): boolea
   return false;
 };
 
+const parseVersionDateValue = (value: any): Date | null => {
+  if (!value) return null;
+
+  const raw = String(value).trim();
+  const exactIsoDate = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (exactIsoDate) {
+    const [, year, month, day] = exactIsoDate;
+    return new Date(Number(year), Number(month) - 1, Number(day));
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+
+  return parsed;
+};
+
+const normalizeVersionDateForFilter = (value: any): string => {
+  const parsed = parseVersionDateValue(value);
+  if (!parsed) return '';
+  return format(parsed, 'dd-MM-yyyy');
+};
+
 export default function ProductVersions() {
   const MIN_PRODUCTS_LIST_HEIGHT = 220;
   const MIN_DETAILS_SECTION_HEIGHT = 260;
@@ -110,6 +134,7 @@ export default function ProductVersions() {
   const [colFilterProductCode, setColFilterProductCode] = useState('');
   const [colFilterProductDescription, setColFilterProductDescription] = useState('');
   const [colFilterVersionNumber, setColFilterVersionNumber] = useState('');
+  const [colFilterVersionDatePicker, setColFilterVersionDatePicker] = useState('');
   const [colFilterVersionDate, setColFilterVersionDate] = useState('');
   const [colFilterStatus, setColFilterStatus] = useState('');
   const [colFilterCreatedBy, setColFilterCreatedBy] = useState('');
@@ -339,7 +364,7 @@ export default function ProductVersions() {
     const productCode = String(version.product_code || '');
     const productDescription = cleanProductDescription(version.product_description || '');
     const versionNumber = String(version.version_number || '');
-    const versionDate = version.version_date ? format(new Date(version.version_date), 'dd/MM/yyyy') : '';
+    const versionDate = normalizeVersionDateForFilter(version.version_date);
     const statusLabel = version.status === 'ready' ? 'Klaar' : 'In Behandeling';
     const createdBy = String(version.created_by_name || '');
     const notes = String(version.notes || '');
@@ -347,7 +372,7 @@ export default function ProductVersions() {
     if (colFilterProductCode && !includesText(productCode, colFilterProductCode)) return false;
     if (colFilterProductDescription && !includesText(productDescription, colFilterProductDescription)) return false;
     if (colFilterVersionNumber && !includesText(versionNumber, colFilterVersionNumber)) return false;
-    if (colFilterVersionDate && !includesText(versionDate, colFilterVersionDate)) return false;
+    if (colFilterVersionDate && versionDate !== colFilterVersionDate) return false;
     if (colFilterStatus && !includesText(statusLabel, colFilterStatus)) return false;
     if (colFilterCreatedBy && !includesText(createdBy, colFilterCreatedBy)) return false;
     if (colFilterNotes && !includesText(notes, colFilterNotes)) return false;
@@ -359,6 +384,7 @@ export default function ProductVersions() {
     setColFilterProductCode('');
     setColFilterProductDescription('');
     setColFilterVersionNumber('');
+    setColFilterVersionDatePicker('');
     setColFilterVersionDate('');
     setColFilterStatus('');
     setColFilterCreatedBy('');
@@ -743,10 +769,20 @@ export default function ProductVersions() {
                 </th>
                 <th style={{ padding: '0.25rem' }}>
                   <input
-                    type="text"
-                    value={colFilterVersionDate}
-                    onChange={(e) => setColFilterVersionDate(e.target.value)}
-                    placeholder="dd/mm/jjjj"
+                    type="date"
+                    value={colFilterVersionDatePicker}
+                    onChange={(e) => {
+                      const pickerValue = e.target.value;
+                      setColFilterVersionDatePicker(pickerValue);
+
+                      if (!pickerValue) {
+                        setColFilterVersionDate('');
+                        return;
+                      }
+
+                      const [year, month, day] = pickerValue.split('-');
+                      setColFilterVersionDate(`${day}-${month}-${year}`);
+                    }}
                     style={{ width: '100%', fontSize: '0.8rem', padding: '0.2rem 0.4rem' }}
                   />
                 </th>
@@ -809,7 +845,7 @@ export default function ProductVersions() {
                   </td>
                   <td>
                     {version.version_date
-                      ? format(new Date(version.version_date), 'dd/MM/yyyy')
+                      ? format(parseVersionDateValue(version.version_date) || new Date(version.version_date), 'dd/MM/yyyy')
                       : '-'}
                   </td>
                   <td>
