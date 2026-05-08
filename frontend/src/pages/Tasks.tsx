@@ -634,11 +634,11 @@ export default function Tasks() {
                       key={task.id}
                       style={{ 
                         cursor: 'pointer',
-                        backgroundColor: isExpanded ? '#e7f3ff' : undefined,
+                        backgroundColor: isExpanded ? 'var(--color-table-row-active)' : undefined,
                       }}
                       onMouseEnter={(e) => {
                         if (!isExpanded) {
-                          e.currentTarget.style.backgroundColor = '#f8f9fa';
+                          e.currentTarget.style.backgroundColor = 'var(--color-table-row-hover)';
                         }
                       }}
                       onMouseLeave={(e) => {
@@ -803,8 +803,8 @@ export default function Tasks() {
                     </tr>
                     {isExpanded && expandedTask && (
                       <tr key={`${task.id}-details`}>
-                        <td colSpan={(isCurrentLineWaitForZk ? 10 : 9) + productionLineColumns.length} style={{ padding: 0, backgroundColor: '#f8f9fa' }}>
-                          <div style={{ padding: '2rem', backgroundColor: '#ffffff', margin: '1rem', borderRadius: '8px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
+                        <td colSpan={(isCurrentLineWaitForZk ? 10 : 9) + productionLineColumns.length} style={{ padding: 0, backgroundColor: 'var(--color-bg)' }}>
+                          <div style={{ padding: '2rem', backgroundColor: 'var(--color-bg-white)', margin: '1rem', borderRadius: '8px', boxShadow: 'var(--shadow-sm)' }}>
                             {/* Task Details */}
                             <div style={{ marginBottom: '2rem' }}>
                               <h2 style={{ marginBottom: '1rem', color: 'var(--color-dark)', fontSize: '1.3rem' }}>

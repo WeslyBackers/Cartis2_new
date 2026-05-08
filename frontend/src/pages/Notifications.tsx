@@ -1540,11 +1540,13 @@ export default function Notifications() {
                       key={notification.id}
                       style={{ 
                         cursor: 'pointer',
-                        backgroundColor: isExpanded ? '#e7f3ff' : selectedIds.includes(notification.id) ? '#f0f8ff' : undefined,
+                        backgroundColor: isExpanded || selectedIds.includes(notification.id)
+                          ? 'var(--color-table-row-active)'
+                          : undefined,
                       }}
                       onMouseEnter={(e) => {
                         if (!isExpanded && !selectedIds.includes(notification.id)) {
-                          e.currentTarget.style.backgroundColor = '#f8f9fa';
+                          e.currentTarget.style.backgroundColor = 'var(--color-table-row-hover)';
                         }
                       }}
                       onMouseLeave={(e) => {

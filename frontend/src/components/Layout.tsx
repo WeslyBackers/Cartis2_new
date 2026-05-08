@@ -1,14 +1,32 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import api from '../services/api';
 import './Layout.css';
+
+type ThemeMode = 'light' | 'dark';
+
+const THEME_STORAGE_KEY = 'cartis-theme-mode';
+
+function getInitialTheme(): ThemeMode {
+  if (typeof window === 'undefined') {
+    return 'light';
+  }
+
+  const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
+  if (stored === 'light' || stored === 'dark') {
+    return stored;
+  }
+
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
 
 export default function Layout() {
   const navigate = useNavigate();
   const { user, currentProductionLineId, setCurrentProductionLine, logout } = useAuthStore();
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
+  const [theme, setTheme] = useState<ThemeMode>(() => getInitialTheme());
 
   const { data: productionLines } = useQuery({
     queryKey: ['productionLines'],
@@ -21,6 +39,15 @@ export default function Layout() {
   const handleLogout = () => {
     logout();
     navigate('/login');
+  };
+
+  useEffect(() => {
+    document.body.setAttribute('data-theme', theme);
+    window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme((currentTheme) => (currentTheme === 'light' ? 'dark' : 'light'));
   };
 
   return (
@@ -57,6 +84,15 @@ export default function Layout() {
           </div>
 
           <div className="user-info">
+            <button
+              type="button"
+              className="theme-toggle"
+              onClick={toggleTheme}
+              title={theme === 'dark' ? 'Schakel naar lichte modus' : 'Schakel naar donkere modus'}
+              aria-label={theme === 'dark' ? 'Schakel naar lichte modus' : 'Schakel naar donkere modus'}
+            >
+              {theme === 'dark' ? 'Light mode' : 'Dark mode'}
+            </button>
             <span>{user?.firstName} {user?.lastName}</span>
             <button onClick={handleLogout}>Uitloggen</button>
           </div>

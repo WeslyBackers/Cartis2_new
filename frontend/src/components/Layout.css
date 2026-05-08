@@ -93,6 +93,22 @@
   box-shadow: none;
 }
 
+.theme-toggle {
+  background-color: transparent;
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border);
+  padding: 0.375rem 0.75rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.theme-toggle:hover {
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  border-color: #cbd5e1;
+  box-shadow: none;
+}
+
 /* ---- Main Container ---- */
 .main-container {
   display: flex;

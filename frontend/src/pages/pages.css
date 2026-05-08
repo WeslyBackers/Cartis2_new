@@ -383,11 +383,11 @@ input[type="checkbox"] {
 
 /* ---- Table Row Highlights ---- */
 .row--expanded {
-  background-color: var(--color-primary-subtle) !important;
+  background-color: var(--color-table-row-active) !important;
 }
 
 .row--selected {
-  background-color: var(--color-primary-subtle) !important;
+  background-color: var(--color-table-row-active) !important;
 }
 
 /* ---- Collapsible Section ---- */
