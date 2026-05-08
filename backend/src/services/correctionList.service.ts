@@ -428,7 +428,7 @@ export async function createCorrectionListPreview(
      JOIN task_articles ta ON ta.task_id = tp.task_id
      JOIN product_versions pv ON pv.id = tp.product_version_id
      WHERE tp.product_id = $1
-       AND pv.status = 'published'
+       AND pv.status IN ('gepubliceerd', 'published')
        AND pv.id <> $2
        AND (
          COALESCE(pv.publication_date, pv.version_date, pv.created_at::date) < $3::date

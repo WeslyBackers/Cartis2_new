@@ -18,6 +18,7 @@ type Baz2ArticleRow = {
   task_id: number;
   task_number: string;
   task_title: string;
+  affected_chart_codes?: string[];
 };
 
 type MsiTaskRow = {
@@ -101,6 +102,14 @@ function buildArticlesSectionHtml(language: 'nl' | 'en', articles: Baz2ArticleRo
     .map((article) => {
       const title = isDutch ? article.title_nl : article.title_en;
       const content = isDutch ? article.content_nl : article.content_en;
+      const affectedChartCodes = Array.isArray(article.affected_chart_codes)
+        ? article.affected_chart_codes
+            .map((code) => String(code || '').trim())
+            .filter((code) => !!code)
+        : [];
+      const affectedChartsLine = affectedChartCodes.length > 0
+        ? `<p style="margin: 0.65rem 0 0; color: #16324f;"><strong>${isDutch ? 'Kaarten' : 'Charts'}:</strong> ${escapeHtml(affectedChartCodes.join(', '))}</p>`
+        : '';
 
       return `
         <section style="margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid #d7dee8;">
@@ -111,6 +120,7 @@ function buildArticlesSectionHtml(language: 'nl' | 'en', articles: Baz2ArticleRo
           </div>
           ${title ? `<h3 style="margin: 0 0 0.5rem; font-size: 1rem; color: #16324f;">${escapeHtml(title)}</h3>` : ''}
           <div>${content || `<p>${emptyArticles}</p>`}</div>
+          ${affectedChartsLine}
         </section>
       `;
     })
@@ -229,6 +239,49 @@ export async function createBaz2PublicationPreview(
     [version.product_id, productVersionId]
   );
 
+  const affectedChartsResult = await db.query(
+    `SELECT ta.id AS article_id,
+            COALESCE(
+              array_agg(DISTINCT p.code ORDER BY p.code)
+                FILTER (WHERE p.code IS NOT NULL AND BTRIM(p.code) <> ''),
+              '{}'::text[]
+            ) AS chart_codes
+     FROM task_products tp
+     JOIN tasks t ON t.id = tp.task_id
+     JOIN task_articles ta ON ta.task_id = t.id
+     JOIN task_products tp_chart ON tp_chart.task_id = t.id
+     JOIN products p ON p.id = tp_chart.product_id
+     WHERE tp.product_id = $1
+       AND tp.product_version_id = $2
+       AND p.type = 'chart'
+     GROUP BY ta.id`,
+    [version.product_id, productVersionId]
+  );
+
+  const affectedChartsByArticleId = new Map<number, string[]>();
+  for (const row of affectedChartsResult.rows as Array<{ article_id: number; chart_codes: string[] | string | null }>) {
+    const articleId = Number(row.article_id);
+    if (!Number.isFinite(articleId)) {
+      continue;
+    }
+
+    let chartCodes: string[] = [];
+    if (Array.isArray(row.chart_codes)) {
+      chartCodes = row.chart_codes
+        .map((code) => String(code || '').trim())
+        .filter((code) => !!code);
+    } else if (typeof row.chart_codes === 'string') {
+      chartCodes = row.chart_codes
+        .replace(/^[{]/, '')
+        .replace(/[}]$/, '')
+        .split(',')
+        .map((code) => code.replace(/^"|"$/g, '').trim())
+        .filter((code) => !!code);
+    }
+
+    affectedChartsByArticleId.set(articleId, chartCodes);
+  }
+
   const msiTasks: MsiTaskRow[] = msiTasksResult.rows.map((row: MsiTaskRow) => ({
     ...row,
     task_number: String(row.task_number || '').trim(),
@@ -244,6 +297,7 @@ export async function createBaz2PublicationPreview(
       task_number: String(row.task_number || '').trim(),
       task_title: String(row.task_title || '').trim(),
       year: Number(row.year) || 0,
+      affected_chart_codes: affectedChartsByArticleId.get(Number(row.id)) || [],
     }))
     .filter((row: Baz2ArticleRow) => !!row.baz_number);
 

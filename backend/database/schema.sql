@@ -158,7 +158,7 @@ CREATE TABLE product_versions (
     product_id INTEGER REFERENCES products(id) ON DELETE CASCADE,
     version_number VARCHAR(50) NOT NULL,
     version_date DATE,
-    status VARCHAR(50) DEFAULT 'in_progress', -- 'in_progress', 'ready', 'published'
+    status VARCHAR(50) DEFAULT 'in behandeling', -- 'in behandeling', 'in inspectie', 'gepubliceerd'
     publication_date DATE,
     notes TEXT,
     created_by INTEGER REFERENCES users(id),

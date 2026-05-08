@@ -2907,7 +2907,7 @@ export default function Notifications() {
                 <div>
                   <label style={{ fontWeight: 'bold', color: '#6c757d', display: 'block', marginBottom: '0.25rem', fontSize: '0.9rem' }}>Inhoud</label>
                   <div
-                    style={{ fontSize: '0.9rem', color: '#343a40', maxHeight: '200px', overflow: 'auto', padding: '0.5rem', backgroundColor: '#f8f9fa', borderRadius: '4px', border: '1px solid #dee2e6' }}
+                    style={{ fontSize: '0.9rem', color: '#343a40', height: '140px', minHeight: '100px', maxHeight: '50vh', resize: 'vertical', overflow: 'auto', padding: '0.5rem', backgroundColor: '#f8f9fa', borderRadius: '4px', border: '1px solid #dee2e6' }}
                     dangerouslySetInnerHTML={{ __html: notification.content }}
                   />
                 </div>

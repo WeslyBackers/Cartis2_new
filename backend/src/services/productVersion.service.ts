@@ -5,6 +5,9 @@ type QueryExecutor = {
   query: (text: string, params?: any[]) => Promise<any>;
 };
 
+const PRODUCT_VERSION_OPEN_STATUS_SQL = "('in behandeling', 'in inspectie', 'in_progress', 'in_inspectie', 'ready')";
+const PRODUCT_VERSION_PUBLISHED_STATUS_SQL = "('gepubliceerd', 'published')";
+
 function buildAutoVersionNumber(productId: number): string {
   const timestamp = new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14);
   const suffix = Math.floor(Math.random() * 900 + 100);
@@ -216,7 +219,7 @@ export async function generateNextVersionNumber(
         `SELECT version_number
          FROM product_versions
          WHERE product_id = $1
-           AND status = 'published'
+           AND status IN ${PRODUCT_VERSION_PUBLISHED_STATUS_SQL}
          ORDER BY COALESCE(publication_date, version_date, created_at::date) DESC, created_at DESC, id DESC
          LIMIT 1`,
         [productId]
@@ -262,7 +265,7 @@ export async function generateNextVersionNumber(
       `SELECT version_number
        FROM product_versions
        WHERE product_id = $1
-         AND status = 'published'
+         AND status IN ${PRODUCT_VERSION_PUBLISHED_STATUS_SQL}
        ORDER BY COALESCE(publication_date, version_date, created_at::date) DESC, created_at DESC, id DESC
        LIMIT 1`,
       [productId]
@@ -293,7 +296,7 @@ export async function getOrCreateInProgressProductVersion(
     `SELECT id
      FROM product_versions
      WHERE product_id = $1
-       AND status = 'in_progress'
+       AND status IN ${PRODUCT_VERSION_OPEN_STATUS_SQL}
      ORDER BY created_at DESC, id DESC
      LIMIT 1`,
     [productId]
@@ -308,7 +311,7 @@ export async function getOrCreateInProgressProductVersion(
   const createResult = await db.query(
     `INSERT INTO product_versions
       (product_id, version_number, version_date, status, notes, created_by)
-     VALUES ($1, $2, CURRENT_DATE, 'in_progress', $3, $4)
+     VALUES ($1, $2, CURRENT_DATE, 'in behandeling', $3, $4)
      RETURNING id`,
     [
       productId,

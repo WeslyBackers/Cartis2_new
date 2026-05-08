@@ -453,7 +453,7 @@ router.get('/', authenticate, async (req: AuthRequest, res) => {
                 SELECT pv.id
                 FROM product_versions pv
                 WHERE pv.product_id = p.id
-                  AND pv.status = 'in_progress'
+                  AND pv.status IN ('in behandeling', 'in inspectie', 'in_progress', 'in_inspectie', 'ready')
                 ORDER BY pv.created_at DESC
                 LIMIT 1
               ),
@@ -461,7 +461,7 @@ router.get('/', authenticate, async (req: AuthRequest, res) => {
                 SELECT pv.version_number
                 FROM product_versions pv
                 WHERE pv.product_id = p.id
-                  AND pv.status = 'in_progress'
+                  AND pv.status IN ('in behandeling', 'in inspectie', 'in_progress', 'in_inspectie', 'ready')
                 ORDER BY pv.created_at DESC
                 LIMIT 1
               )
@@ -640,7 +640,7 @@ router.get('/:id', authenticate, async (req: AuthRequest, res) => {
                 SELECT pv.id
                 FROM product_versions pv
                 WHERE pv.product_id = p.id
-                  AND pv.status = 'in_progress'
+                  AND pv.status IN ('in behandeling', 'in inspectie', 'in_progress', 'in_inspectie', 'ready')
                 ORDER BY pv.created_at DESC
                 LIMIT 1
               ),
@@ -648,7 +648,7 @@ router.get('/:id', authenticate, async (req: AuthRequest, res) => {
                 SELECT pv.version_number
                 FROM product_versions pv
                 WHERE pv.product_id = p.id
-                  AND pv.status = 'in_progress'
+                  AND pv.status IN ('in behandeling', 'in inspectie', 'in_progress', 'in_inspectie', 'ready')
                 ORDER BY pv.created_at DESC
                 LIMIT 1
               ),

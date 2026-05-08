@@ -8,6 +8,19 @@ import { createBaz2PublicationPreview } from '../services/baz2Publication.servic
 
 const router = Router();
 
+const PRODUCT_VERSION_OPEN_STATUS_SQL = "('in behandeling', 'in inspectie', 'in_progress', 'in_inspectie', 'ready')";
+
+function normalizeProductVersionStatus(rawStatus: any): 'in behandeling' | 'in inspectie' | 'gepubliceerd' | null {
+  const value = String(rawStatus || '').trim().toLowerCase();
+
+  if (!value) return null;
+  if (value === 'in behandeling' || value === 'in_progress' || value === 'ready') return 'in behandeling';
+  if (value === 'in inspectie' || value === 'in_inspectie') return 'in inspectie';
+  if (value === 'gepubliceerd' || value === 'published') return 'gepubliceerd';
+
+  return null;
+}
+
 // Get all product versions
 router.get('/', authenticate, async (req, res) => {
   try {
@@ -36,9 +49,19 @@ router.get('/', authenticate, async (req, res) => {
     }
 
     if (status) {
-      paramCount++;
-      query += ` AND pv.status = $${paramCount}`;
-      params.push(status);
+      const normalizedStatus = normalizeProductVersionStatus(status);
+
+      if (!normalizedStatus) {
+        return res.status(400).json({ error: 'Invalid product version status' });
+      }
+
+      if (normalizedStatus === 'gepubliceerd') {
+        query += ` AND pv.status IN ('gepubliceerd', 'published')`;
+      } else if (normalizedStatus === 'in inspectie') {
+        query += ` AND pv.status IN ('in inspectie', 'in_inspectie')`;
+      } else {
+        query += ` AND pv.status IN ('in behandeling', 'in_progress', 'ready')`;
+      }
     }
 
     if (productionLineId) {
@@ -200,18 +223,23 @@ router.patch('/:id/tasks/:taskId/execution-status', authenticate, async (req: Au
 // Create product version
 router.post('/', authenticate, async (req: AuthRequest, res) => {
   try {
-    const { productId, versionNumber, versionDate, notes, newEdition } = req.body;
+    const { productId, versionNumber, versionDate, notes, newEdition, status } = req.body;
     const userId = req.user?.id;
 
     if (!productId) {
       return res.status(400).json({ error: 'productId is required' });
     }
 
+    const normalizedStatus = normalizeProductVersionStatus(status) || 'in behandeling';
+    if (normalizedStatus === 'gepubliceerd') {
+      return res.status(400).json({ error: 'Gebruik de publiceeractie om een productversie te publiceren' });
+    }
+
     const existingInProgressResult = await pool.query(
       `SELECT id, version_number
        FROM product_versions
        WHERE product_id = $1
-         AND status = 'in_progress'
+         AND status IN ${PRODUCT_VERSION_OPEN_STATUS_SQL}
        ORDER BY created_at DESC, id DESC
        LIMIT 1`,
       [productId]
@@ -259,9 +287,9 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
     const result = await pool.query(
       `INSERT INTO product_versions 
         (product_id, version_number, version_date, status, notes, created_by)
-      VALUES ($1, $2, $3, 'in_progress', $4, $5)
+      VALUES ($1, $2, $3, $4, $5, $6)
       RETURNING *`,
-      [productId, resolvedVersionNumber, versionDate || null, notes, userId]
+      [productId, resolvedVersionNumber, versionDate || null, normalizedStatus, notes, userId]
     );
 
     // Log activity
@@ -309,7 +337,7 @@ router.post('/:id/publish', authenticate, async (req: AuthRequest, res) => {
     // Update version status
     const result = await pool.query(
       `UPDATE product_versions
-      SET status = 'published',
+      SET status = 'gepubliceerd',
           publication_date = COALESCE($2::date, CURRENT_DATE),
           version_number = CASE
             WHEN lower(COALESCE($5, '')) = 'chart'
@@ -356,6 +384,53 @@ router.post('/:id/publish', authenticate, async (req: AuthRequest, res) => {
     res.json(result.rows[0]);
   } catch (error) {
     console.error('Publish product version error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Update status for a product version (except publish status)
+router.patch('/:id/status', authenticate, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+    const userId = req.user?.id;
+
+    const normalizedStatus = normalizeProductVersionStatus(status);
+    if (!normalizedStatus) {
+      return res.status(400).json({ error: 'Invalid product version status' });
+    }
+
+    if (normalizedStatus === 'gepubliceerd') {
+      return res.status(400).json({ error: 'Gebruik de publiceeractie om een productversie te publiceren' });
+    }
+
+    const result = await pool.query(
+      `UPDATE product_versions
+       SET status = $1,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2
+       RETURNING *`,
+      [normalizedStatus, id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Product version not found' });
+    }
+
+    await pool.query(
+      'INSERT INTO activity_log (entity_type, entity_id, action, changes, user_id) VALUES ($1, $2, $3, $4, $5)',
+      [
+        'product_version',
+        id,
+        'status_updated',
+        JSON.stringify({ status: normalizedStatus }),
+        userId,
+      ]
+    );
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Update product version status error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

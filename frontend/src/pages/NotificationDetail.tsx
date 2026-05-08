@@ -1633,7 +1633,11 @@ export default function NotificationDetail() {
               boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
               color: '#343a40',
               marginBottom: '1.5rem',
-              height: basisinformatieHeight ? `${basisinformatieHeight}px` : undefined,
+              height: basisinformatieHeight ? `${Math.min(basisinformatieHeight, 260)}px` : '260px',
+              minHeight: '220px',
+              maxHeight: '70vh',
+              resize: 'vertical',
+              overflow: 'hidden',
               display: 'flex',
               flexDirection: 'column',
             }}

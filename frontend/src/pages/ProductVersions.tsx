@@ -110,6 +110,24 @@ const normalizeVersionDateForFilter = (value: any): string => {
   if (!parsed) return '';
   return format(parsed, 'dd-MM-yyyy');
 };
+const getProductVersionStatusLabel = (status: string | null | undefined): string => {
+  const normalized = String(status || '').trim().toLowerCase();
+  if (normalized === 'gepubliceerd' || normalized === 'published') return 'Gepubliceerd';
+  if (normalized === 'in inspectie' || normalized === 'in_inspectie') return 'In inspectie';
+  return 'In behandeling';
+};
+
+const isProductVersionPublished = (status: string | null | undefined): boolean => {
+  const normalized = String(status || '').trim().toLowerCase();
+  return normalized === 'gepubliceerd' || normalized === 'published';
+};
+
+const normalizeProductVersionStatus = (status: string | null | undefined): 'in behandeling' | 'in inspectie' | 'gepubliceerd' => {
+  const normalized = String(status || '').trim().toLowerCase();
+  if (normalized === 'gepubliceerd' || normalized === 'published') return 'gepubliceerd';
+  if (normalized === 'in inspectie' || normalized === 'in_inspectie') return 'in inspectie';
+  return 'in behandeling';
+};
 
 export default function ProductVersions() {
   const MIN_PRODUCTS_LIST_HEIGHT = 220;
@@ -125,6 +143,7 @@ export default function ProductVersions() {
   const [selectedProductIdForCreate, setSelectedProductIdForCreate] = useState<number | null>(null);
   const [editionNumber, setEditionNumber] = useState('01');
   const [updateNumber, setUpdateNumber] = useState('00');
+  const [createVersionStatus, setCreateVersionStatus] = useState<'in behandeling' | 'in inspectie'>('in behandeling');
   const [versionDate, setVersionDate] = useState('');
   const [createNotes, setCreateNotes] = useState('');
   const [previewArticle, setPreviewArticle] = useState<any | null>(null);
@@ -258,6 +277,21 @@ export default function ProductVersions() {
         publicationDate: publicationDate || null,
       });
     },
+    onMutate: async ({ versionId }) => {
+      await queryClient.cancelQueries({ queryKey: ['productVersionsOpen', currentProductionLineId] });
+
+      const previousVersions = queryClient.getQueryData<any[]>(['productVersionsOpen', currentProductionLineId]);
+
+      queryClient.setQueryData<any[]>(['productVersionsOpen', currentProductionLineId], (old) =>
+        (old || []).map((version: any) =>
+          Number(version.id) === Number(versionId)
+            ? { ...version, status: 'gepubliceerd' }
+            : version
+        )
+      );
+
+      return { previousVersions };
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['productVersionsOpen', currentProductionLineId] });
       queryClient.invalidateQueries({ queryKey: ['productVersionDetail', selectedVersionId] });
@@ -265,7 +299,10 @@ export default function ProductVersions() {
       setNewEditionOnPublish(false);
       setPublishDateOnPublish('');
     },
-    onError: (error: any) => {
+    onError: (error: any, _variables, context) => {
+      if (context?.previousVersions) {
+        queryClient.setQueryData(['productVersionsOpen', currentProductionLineId], context.previousVersions);
+      }
       alert(getApiErrorMessage(error, 'Publiceren van productversie mislukt'));
     },
   });
@@ -303,6 +340,7 @@ export default function ProductVersions() {
 
       const payload: any = {
         productId: selectedProductIdForCreate,
+        status: createVersionStatus,
         versionDate: versionDate || null,
         notes: createNotes || null,
       };
@@ -323,6 +361,7 @@ export default function ProductVersions() {
       }
       setEditionNumber('01');
       setUpdateNumber('00');
+      setCreateVersionStatus('in behandeling');
       setVersionDate('');
       setCreateNotes('');
     },
@@ -357,15 +396,56 @@ export default function ProductVersions() {
     },
   });
 
+  const updateVersionStatusMutation = useMutation({
+    mutationFn: async ({ versionId, status }: { versionId: number; status: 'in behandeling' | 'in inspectie' }) => {
+      return await api.patch(`/product-versions/${versionId}/status`, { status });
+    },
+    onMutate: async ({ versionId, status }) => {
+      await queryClient.cancelQueries({ queryKey: ['productVersionsOpen', currentProductionLineId] });
+      await queryClient.cancelQueries({ queryKey: ['productVersionDetail', selectedVersionId] });
+
+      const previousVersions = queryClient.getQueryData<any[]>(['productVersionsOpen', currentProductionLineId]);
+      const previousDetail = queryClient.getQueryData<any>(['productVersionDetail', selectedVersionId]);
+
+      queryClient.setQueryData<any[]>(['productVersionsOpen', currentProductionLineId], (old) =>
+        (old || []).map((version: any) =>
+          Number(version.id) === Number(versionId)
+            ? { ...version, status }
+            : version
+        )
+      );
+
+      queryClient.setQueryData<any>(['productVersionDetail', selectedVersionId], (old) => {
+        if (!old || Number(old.id) !== Number(versionId)) return old;
+        return { ...old, status };
+      });
+
+      return { previousVersions, previousDetail };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['productVersionsOpen', currentProductionLineId] });
+      queryClient.invalidateQueries({ queryKey: ['productVersionDetail', selectedVersionId] });
+    },
+    onError: (error: any, _variables, context) => {
+      if (context?.previousVersions) {
+        queryClient.setQueryData(['productVersionsOpen', currentProductionLineId], context.previousVersions);
+      }
+      if (context?.previousDetail) {
+        queryClient.setQueryData(['productVersionDetail', selectedVersionId], context.previousDetail);
+      }
+      alert(getApiErrorMessage(error, 'Bijwerken van productversie-status mislukt'));
+    },
+  });
+
   const openVersions = (versions || []).filter(
-    (version: any) => version.status !== 'published' && !isIntegratedCorrectionListCode(version.product_code)
+    (version: any) => !isProductVersionPublished(version.status) && !isIntegratedCorrectionListCode(version.product_code)
   );
   const filteredOpenVersions = openVersions.filter((version: any) => {
     const productCode = String(version.product_code || '');
     const productDescription = cleanProductDescription(version.product_description || '');
     const versionNumber = String(version.version_number || '');
     const versionDate = normalizeVersionDateForFilter(version.version_date);
-    const statusLabel = version.status === 'ready' ? 'Klaar' : 'In Behandeling';
+    const statusLabel = getProductVersionStatusLabel(version.status);
     const createdBy = String(version.created_by_name || '');
     const notes = String(version.notes || '');
 
@@ -668,6 +748,16 @@ export default function ProductVersions() {
 
           <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
             <div>
+              <label style={{ display: 'block', marginBottom: '0.35rem', color: '#495057', fontWeight: 600 }}>Status</label>
+              <select
+                value={createVersionStatus}
+                onChange={(e) => setCreateVersionStatus(e.target.value as 'in behandeling' | 'in inspectie')}
+              >
+                <option value="in behandeling">In behandeling</option>
+                <option value="in inspectie">In inspectie</option>
+              </select>
+            </div>
+            <div>
               <label style={{ display: 'block', marginBottom: '0.35rem', color: '#495057', fontWeight: 600 }}>Versiedatum</label>
               <input
                 type="date"
@@ -793,8 +883,8 @@ export default function ProductVersions() {
                     style={{ width: '100%', fontSize: '0.8rem', padding: '0.2rem 0.4rem' }}
                   >
                     <option value="">Alle</option>
-                    <option value="klaar">Klaar</option>
-                    <option value="in behandeling">In Behandeling</option>
+                    <option value="in behandeling">In behandeling</option>
+                    <option value="in inspectie">In inspectie</option>
                   </select>
                 </th>
                 <th style={{ padding: '0.25rem' }}>
@@ -854,10 +944,10 @@ export default function ProductVersions() {
                         padding: '0.25em 0.5em',
                         borderRadius: '4px',
                         fontSize: '0.85rem',
-                        background: version.status === 'ready' ? '#cce5ff' : '#fff3cd',
+                        background: normalizeProductVersionStatus(version.status) === 'in inspectie' ? '#d6f0ff' : '#fff3cd',
                       }}
                     >
-                      {version.status === 'ready' ? 'Klaar' : 'In Behandeling'}
+                      {getProductVersionStatusLabel(version.status)}
                     </span>
                   </td>
                   <td>{version.created_by_name || '-'}</td>
@@ -1049,6 +1139,42 @@ export default function ProductVersions() {
 
           {!!selectedVersion && (
             <div style={{ marginBottom: '0.75rem', display: 'flex', flexWrap: 'wrap', gap: '0.75rem', alignItems: 'center' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', color: '#343a40' }}>
+                status
+                <select
+                  value={normalizeProductVersionStatus(selectedVersion?.status)}
+                  onChange={(e) => {
+                    const nextStatus = e.target.value as 'in behandeling' | 'in inspectie' | 'gepubliceerd';
+
+                    if (!selectedVersionId) return;
+
+                    if (nextStatus === 'gepubliceerd') {
+                      if (isSelectedVersionChart && !publishDateOnPublish) {
+                        alert('Selecteer een publicatiedatum voor Chart-producten');
+                        return;
+                      }
+
+                      publishVersionMutation.mutate({
+                        versionId: selectedVersionId,
+                        newEdition: newEditionOnPublish,
+                        publicationDate: publishDateOnPublish,
+                      });
+                      return;
+                    }
+
+                    updateVersionStatusMutation.mutate({
+                      versionId: selectedVersionId,
+                      status: nextStatus,
+                    });
+                  }}
+                  disabled={updateVersionStatusMutation.isPending || publishVersionMutation.isPending}
+                >
+                  <option value="in behandeling">In behandeling</option>
+                  <option value="in inspectie">In inspectie</option>
+                  <option value="gepubliceerd">Gepubliceerd</option>
+                </select>
+              </label>
+
               <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', color: '#343a40' }}>
                 <input
                   type="checkbox"
