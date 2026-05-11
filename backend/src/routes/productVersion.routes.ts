@@ -89,6 +89,7 @@ router.get('/:id', authenticate, async (req, res) => {
     const versionResult = await pool.query(
       `SELECT pv.*, p.code as product_code, p.name as product_name, p.description as product_description,
         p.type as product_type,
+        p.geometry as product_geometry,
         p.production_line_id,
         pl.code as production_line_code,
         pl.name as production_line_name,
@@ -139,6 +140,54 @@ router.get('/:id', authenticate, async (req, res) => {
           ),
           '[]'
         ) AS articles,
+        COALESCE(
+          (
+            SELECT json_agg(
+              json_build_object(
+                'code', n.code,
+                'title', n.title,
+                'geometry', n.geometry,
+                'coordinates', (
+                  SELECT COALESCE(json_agg(
+                    json_build_object(
+                      'id', nc.id,
+                      'geometry', nc.geometry,
+                      'latitude', nc.latitude,
+                      'longitude', nc.longitude
+                    )
+                  ), '[]')
+                  FROM notification_coordinates nc
+                  WHERE nc.notification_id = n.id
+                    AND (nc.geometry IS NOT NULL OR (nc.latitude IS NOT NULL AND nc.longitude IS NOT NULL))
+                ),
+                'products', (
+                  SELECT COALESCE(json_agg(
+                    json_build_object(
+                      'id', p.id,
+                      'code', p.code,
+                      'name', p.name,
+                      'type', p.type,
+                      'geometry', p.geometry
+                    )
+                  ), '[]')
+                  FROM (
+                    SELECT DISTINCT p.id, p.code, p.name, p.type, p.geometry
+                    FROM notifications_products np
+                    JOIN products p ON np.product_id = p.id
+                    WHERE np.notification_id = n.id
+                  ) p
+                )
+              )
+            )
+            FROM (
+              SELECT DISTINCT n.id, n.code, n.title, n.geometry
+              FROM task_notifications tn
+              JOIN notifications n ON tn.notification_id = n.id
+              WHERE tn.task_id = t.id
+            ) n
+          ),
+          '[]'
+        ) AS notice_geometries,
         tp.status, tp.notes, tp.execution_status
       FROM task_products tp
       JOIN tasks t ON tp.task_id = t.id

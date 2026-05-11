@@ -243,6 +243,26 @@
   background-color: var(--color-danger);
   color: white;
 }
+.action-btn--ghost {
+  background-color: transparent;
+  color: var(--color-text-secondary, #555);
+  border: 1px solid #d1d5db;
+  font-weight: 400;
+}
+.action-btn--ghost:hover {
+  background-color: #f3f4f6;
+  opacity: 1;
+}
+.action-btn--ghost-danger {
+  background-color: transparent;
+  color: var(--color-danger, #dc2626);
+  border: 1px solid #fca5a5;
+  font-weight: 400;
+}
+.action-btn--ghost-danger:hover {
+  background-color: #fef2f2;
+  opacity: 1;
+}
 
 /* ---- Resizable Split Panels ---- */
 .split-panel {

@@ -5,6 +5,7 @@ import api from '../services/api';
 import { format } from 'date-fns';
 import { useAuthStore } from '../stores/authStore';
 import { openCorrectionListPrintPreview } from '../utils/printUtils';
+import { ProductVersionMapOverview } from '../components/ProductVersionMapOverview';
 
 const getTaskStatusLabel = (status: string) => {
   if (status === 'hoog_te_verwerken') return 'Hoog te verwerken';
@@ -112,6 +113,7 @@ export default function PublishedProductVersions() {
   const [colFilterNotes, setColFilterNotes] = useState('');
   const [correctionListLanguage, setCorrectionListLanguage] = useState<'nl' | 'en'>('nl');
   const [baz2PublicationLanguage, setBaz2PublicationLanguage] = useState<'nl' | 'en'>('nl');
+  const [isMapExpanded, setIsMapExpanded] = useState(false);
   const currentProductionLineId = useAuthStore((state) => state.currentProductionLineId);
 
   useEffect(() => {
@@ -126,6 +128,22 @@ export default function PublishedProductVersions() {
   useEffect(() => {
     setSelectedVersionId(null);
   }, [currentProductionLineId]);
+
+  // Handle Escape key to close expanded map
+  useEffect(() => {
+    if (!isMapExpanded) return;
+
+    const handleEscapeKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsMapExpanded(false);
+      }
+    };
+
+    document.addEventListener('keydown', handleEscapeKey);
+    return () => {
+      document.removeEventListener('keydown', handleEscapeKey);
+    };
+  }, [isMapExpanded]);
 
   const { data: productionLines } = useQuery({
     queryKey: ['productionLinesForPublishedVersions'],
@@ -503,6 +521,75 @@ export default function PublishedProductVersions() {
           )}
 
           <h2 style={{ marginBottom: '0.75rem', color: '#343a40' }}>Gekoppelde taken</h2>
+
+          {!!selectedVersion && (selectedVersion.product_geometry || (selectedVersion.tasks?.length > 0 && selectedVersion.tasks.some((t: any) => t.notice_geometries?.length > 0))) && (
+            <div style={{ marginBottom: '1rem' }}>
+              <button
+                type="button"
+                className={isMapExpanded ? 'btn-secondary' : 'btn-primary'}
+                onClick={() => setIsMapExpanded(!isMapExpanded)}
+                style={{ marginBottom: '0.5rem' }}
+              >
+                {isMapExpanded ? 'Verklein kaart (Esc)' : 'Vergroot kaart'}
+              </button>
+              {isMapExpanded && (
+                <div style={{
+                  position: 'fixed',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  backgroundColor: 'rgba(0,0,0,0.5)',
+                  zIndex: 1000,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}>
+                  <div style={{
+                    position: 'relative',
+                    width: '95%',
+                    height: '95%',
+                    backgroundColor: 'white',
+                    borderRadius: '8px',
+                    boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                  }}>
+                    <div style={{
+                      flex: 1,
+                      overflow: 'hidden',
+                    }}>
+                      <ProductVersionMapOverview
+                        selectedVersion={selectedVersion}
+                        productName={selectedVersion.product_name}
+                        productCode={selectedVersion.product_code}
+                        isExpanded={true}
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsMapExpanded(false)}
+                      style={{
+                        padding: '0.5rem 1rem',
+                        margin: '0.75rem',
+                        alignSelf: 'flex-end',
+                      }}
+                    >
+                      Sluiten (Esc)
+                    </button>
+                  </div>
+                </div>
+              )}
+              {!isMapExpanded && (
+                <ProductVersionMapOverview
+                  selectedVersion={selectedVersion}
+                  productName={selectedVersion.product_name}
+                  productCode={selectedVersion.product_code}
+                  isExpanded={false}
+                />
+              )}
+            </div>
+          )}
 
           {isLoadingSelectedVersion ? (
             <p className="loading-text">Laden...</p>

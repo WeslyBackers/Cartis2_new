@@ -426,32 +426,21 @@ export default function Dashboard() {
                   </div>
                   <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', alignItems: 'center' }}>
                     {currentProductionLineId && (
-                      <>
-                        <button
-                          type="button"
-                          className="action-btn action-btn--secondary"
-                          onClick={() => handleNoteVisibilityForCurrentLine(Number(note.id), true)}
-                          disabled={setNoteVisibilityMutation.isPending}
-                          title="Houd deze nota zichtbaar voor de huidige productielijn"
-                        >
-                          Houden ({readableProductionLines.find((line) => Number(line.id) === Number(currentProductionLineId))?.code || currentProductionLineId})
-                        </button>
-                        <button
-                          type="button"
-                          className="action-btn action-btn--danger"
-                          onClick={() => handleNoteVisibilityForCurrentLine(Number(note.id), false)}
-                          disabled={setNoteVisibilityMutation.isPending}
-                          title="Verwijder deze nota voor de huidige productielijn"
-                        >
-                          Verwijderen voor lijn
-                        </button>
-                      </>
+                      <button
+                        type="button"
+                        className="action-btn action-btn--ghost-danger"
+                        onClick={() => handleNoteVisibilityForCurrentLine(Number(note.id), false)}
+                        disabled={setNoteVisibilityMutation.isPending}
+                        title="Verwijder deze nota voor de huidige productielijn"
+                      >
+                        Verwijderen voor lijn
+                      </button>
                     )}
                     {canEditNote(note) && (
                       <>
                         <button
                           type="button"
-                          className="action-btn action-btn--secondary"
+                          className="action-btn action-btn--ghost"
                           onClick={() => openEditNote(note)}
                           title="Bewerk deze nota"
                         >
@@ -463,7 +452,7 @@ export default function Dashboard() {
                       <>
                         <button
                           type="button"
-                          className="action-btn action-btn--danger"
+                          className="action-btn action-btn--ghost-danger"
                           onClick={() => handleDeleteNote(Number(note.id))}
                           disabled={deleteNoteMutation.isPending}
                           title="Verwijder deze nota"
