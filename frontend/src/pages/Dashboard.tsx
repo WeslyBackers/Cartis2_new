@@ -65,7 +65,7 @@ export default function Dashboard() {
     queryFn: async () => {
       const [notifications, tasks] = await Promise.all([
         api.get('/notifications', {
-          params: { productionLineId: currentProductionLineId, status: 'pending', limit: 10 },
+          params: { productionLineId: currentProductionLineId, undecidedOnly: true, limit: 10 },
         }),
         api.get('/tasks', {
           params: { productionLineId: currentProductionLineId, limit: 10 },
