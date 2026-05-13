@@ -160,7 +160,7 @@ export default function ProductVersions() {
   const [colFilterCreatedBy, setColFilterCreatedBy] = useState('');
   const [colFilterNotes, setColFilterNotes] = useState('');
   const [isMapExpanded, setIsMapExpanded] = useState(false);
-  const [isMapCollapsed, setIsMapCollapsed] = useState(false);
+  const [isMapCollapsed, setIsMapCollapsed] = useState(true);
   const resizeStartRef = useRef<{ startY: number; startHeight: number } | null>(null);
   const currentProductionLineId = useAuthStore((state) => state.currentProductionLineId);
   const queryClient = useQueryClient();

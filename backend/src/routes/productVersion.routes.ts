@@ -144,6 +144,7 @@ router.get('/:id', authenticate, async (req, res) => {
           (
             SELECT json_agg(
               json_build_object(
+                'id', n.id,
                 'code', n.code,
                 'title', n.title,
                 'geometry', n.geometry,

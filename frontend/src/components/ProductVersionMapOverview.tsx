@@ -204,9 +204,10 @@ export function ProductVersionMapOverview({
     return points;
   };
 
-  const { productGeometries, noticeGeometries, centerCoordinates, mapBounds } = useMemo(() => {
+  const { productGeometries, noticeGeometries, linkedNoticeCount, centerCoordinates, mapBounds } = useMemo(() => {
     const productGeoms: any[] = [];
     const noticeGeoms: Array<{ noticeCode: string; noticeTitle: string; geometry: any; taskNumber: string }> = [];
+    const linkedNoticeKeys = new Set<string>();
     let firstCoord: [number, number] | null = null;
     const boundsPoints: L.LatLngExpression[] = [];
 
@@ -239,6 +240,11 @@ export function ProductVersionMapOverview({
         const notices = task.notice_geometries || [];
         if (Array.isArray(notices)) {
           notices.forEach((notice: any) => {
+            const linkedNoticeKey = String(notice.id || notice.code || `${notice.title || ''}|${task.task_number || ''}`);
+            if (linkedNoticeKey) {
+              linkedNoticeKeys.add(linkedNoticeKey);
+            }
+
             const parsed = parseGeom(notice.geometry);
             if (parsed) {
               const renderables = extractRenderableGeometries(parsed);
@@ -301,6 +307,7 @@ export function ProductVersionMapOverview({
     return {
       productGeometries: productGeoms,
       noticeGeometries: noticeGeoms,
+      linkedNoticeCount: linkedNoticeKeys.size,
       centerCoordinates: firstCoord || [52.1326, 5.2913], // Default center (Netherlands)
       mapBounds,
     };
@@ -431,7 +438,7 @@ export function ProductVersionMapOverview({
             }}
           />
           <span>
-            Gekoppelde meldingen ({noticeGeometries.length})
+            Gekoppelde meldingen ({linkedNoticeCount})
           </span>
         </div>
       </div>
