@@ -232,7 +232,9 @@ async function processKMLFile(client, filePath) {
         // Extract product info
         const productName = extractProductName(feature);
         const productCode = feature.properties.name || `${filename.replace('.kml', '')}_${productCount}`;
-        const description = extractDescription(feature);
+        const description = plInfo.code === 'PILOT_ENC'
+          ? (extractObjnam(feature) || productName)
+          : extractDescription(feature);
         
         if (!productName) {
           console.log(`  ⚠ Skipping feature without name`);

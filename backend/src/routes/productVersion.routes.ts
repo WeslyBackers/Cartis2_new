@@ -342,6 +342,17 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
       [productId, resolvedVersionNumber, versionDate || null, normalizedStatus, notes, userId]
     );
 
+    // Attach historical task links that were created before a version existed.
+    // This keeps product version overviews complete for existing task-product relations.
+    await pool.query(
+      `UPDATE task_products
+       SET product_version_id = $1,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE product_id = $2
+         AND product_version_id IS NULL`,
+      [result.rows[0].id, productId]
+    );
+
     // Log activity
     await pool.query(
       'INSERT INTO activity_log (entity_type, entity_id, action, user_id) VALUES ($1, $2, $3, $4)',

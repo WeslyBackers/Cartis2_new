@@ -1095,7 +1095,7 @@ router.put('/:id/production-line-status/:productionLineId', authenticate, async 
 
     console.log('Production line status update result:', result.rows.length, 'rows affected');
 
-    // If ZK marks task as completed, auto-complete IENC/PILOT_ENC rows that are waiting for ZK.
+    // If ZK marks task as completed, auto-complete PILOT_ENC rows that are waiting for ZK.
     if (status === 'completed') {
       const lineCodeResult = await pool.query(
         'SELECT code FROM production_lines WHERE id = $1',
@@ -1108,11 +1108,12 @@ router.put('/:id/production-line-status/:productionLineId', authenticate, async 
         const autoCompletedLinesResult = await pool.query(
           `UPDATE task_production_line_status target_status
            SET status = 'completed',
+               wait_for_zk = FALSE,
                updated_at = CURRENT_TIMESTAMP
            FROM production_lines target_line
            WHERE target_status.task_id = $1
              AND target_status.production_line_id = target_line.id
-             AND target_line.code IN ('IENC', 'PILOT_ENC')
+             AND target_line.code = 'PILOT_ENC'
              AND target_status.wait_for_zk = TRUE
              AND target_status.status <> 'completed'
            RETURNING target_status.production_line_id`,
@@ -1196,6 +1197,7 @@ router.patch('/:id/production-line-status/:productionLineId/wait-for-zk', authen
         const completeResult = await pool.query(
           `UPDATE task_production_line_status
            SET status = 'completed',
+               wait_for_zk = FALSE,
                updated_at = CURRENT_TIMESTAMP
            WHERE task_id = $1
              AND production_line_id = $2
