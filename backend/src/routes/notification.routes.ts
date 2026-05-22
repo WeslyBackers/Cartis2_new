@@ -390,11 +390,69 @@ async function detectAndLinkProductsForNotification(notificationId: number): Pro
       [notificationId]
     );
     console.log(`[Product Detection] ✓ Final verification: ${finalCountResult.rows[0].count} total products linked to notification ${notificationId}`);
+
+    // Keep task-level product lists in sync with notification-level product detection.
+    // This ensures newly auto-detected products immediately appear in task overviews/maps.
+    await syncDetectedProductsToLinkedTasks(notificationId);
+
     console.log(`[Product Detection] ========================================`);
     
   } catch (error) {
     console.error(`[Product Detection] ✗ Error for notification ${notificationId}:`, error);
     // Don't throw - we don't want product detection failures to break the main flow
+  }
+}
+
+async function syncDetectedProductsToLinkedTasks(notificationId: number): Promise<void> {
+  try {
+    const insertedResult = await pool.query(
+      `INSERT INTO task_products (task_id, product_id, product_version_id, status, created_at, updated_at)
+       SELECT DISTINCT
+         t.id,
+         p.id,
+         pv.id,
+         'hoog_te_verwerken',
+         CURRENT_TIMESTAMP,
+         CURRENT_TIMESTAMP
+       FROM task_notifications tn
+       JOIN tasks t ON t.id = tn.task_id
+       JOIN notifications_products np ON np.notification_id = tn.notification_id
+       JOIN products p ON p.id = np.product_id
+       LEFT JOIN LATERAL (
+         SELECT id
+         FROM product_versions
+         WHERE product_id = p.id
+           AND status IN ('in behandeling', 'in inspectie', 'in_progress', 'in_inspectie', 'ready')
+         ORDER BY created_at DESC
+         LIMIT 1
+       ) pv ON true
+       WHERE tn.notification_id = $1
+         AND np.is_relevant = true
+         AND p.is_active = true
+         AND (
+           t.production_line_id = p.production_line_id
+           OR EXISTS (
+             SELECT 1
+             FROM task_production_line_status tpls
+             WHERE tpls.task_id = t.id
+               AND tpls.production_line_id = p.production_line_id
+           )
+         )
+       ON CONFLICT (task_id, product_id) DO NOTHING
+       RETURNING id`,
+      [notificationId]
+    );
+
+    if (insertedResult.rows.length > 0) {
+      console.log(
+        `[Product Detection] ✓ Notification ${notificationId}: Synced ${insertedResult.rows.length} product link(s) into related task(s)`
+      );
+    }
+  } catch (error) {
+    console.error(
+      `[Product Detection] ✗ Notification ${notificationId}: Failed to sync detected products to tasks:`,
+      error
+    );
   }
 }
 

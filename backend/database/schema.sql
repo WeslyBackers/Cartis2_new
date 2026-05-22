@@ -51,14 +51,15 @@ CREATE TABLE user_production_line_rights (
 CREATE TABLE products (
     id SERIAL PRIMARY KEY,
     production_line_id INTEGER REFERENCES production_lines(id),
-    code VARCHAR(50) UNIQUE NOT NULL,
+    code VARCHAR(50) NOT NULL,
     name VARCHAR(255) NOT NULL,
     type VARCHAR(50), -- 'chart', 'publication', 'enc', etc.
     description TEXT,
     geometry TEXT, -- GeoJSON of WKT voor geografische omtrek
     is_active BOOLEAN DEFAULT true,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(production_line_id, code)
 );
 
 -- Notifications (Meldingen)

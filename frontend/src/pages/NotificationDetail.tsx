@@ -716,6 +716,32 @@ export default function NotificationDetail() {
     },
   });
 
+  const decisionMutation = useMutation({
+    mutationFn: async (decision: 'Ja' | 'Nee') => {
+      if (!currentProductionLineId) {
+        throw new Error('Selecteer eerst een productielijn');
+      }
+
+      await api.post(`/notifications/${id}/decide`, {
+        productionLineId: currentProductionLineId,
+        decision,
+        notes: isHtmlEmpty(notes) ? undefined : notes,
+      });
+    },
+    onSuccess: async (_data, decision) => {
+      await queryClient.invalidateQueries({ queryKey: ['notification', id] });
+      await queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      await queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      await queryClient.refetchQueries({ queryKey: ['notification', id] });
+      setNotes('');
+      alert(`Beslissing '${decision}' succesvol opgeslagen!`);
+    },
+    onError: (error: any) => {
+      console.error('Error saving decision:', error);
+      alert(`Fout bij opslaan beslissing: ${getApiErrorMessage(error, 'onbekende fout')}`);
+    },
+  });
+
   const uploadMutation = useMutation({
     mutationFn: async (file: File) => {
       const formData = new FormData();
@@ -2086,6 +2112,44 @@ export default function NotificationDetail() {
                           : 'Nog geen beslissing genomen voor deze productielijn.'}
                       </p>
                     )}
+
+                    <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
+                      <button
+                        onClick={() => decisionMutation.mutate('Ja')}
+                        disabled={decisionMutation.isPending || !currentProductionLineId}
+                        style={{
+                          background: !currentProductionLineId ? '#6c757d' : '#198754',
+                          color: 'white',
+                          padding: '0.65rem 1.25rem',
+                          fontSize: '0.95rem',
+                          border: 'none',
+                          borderRadius: '4px',
+                          cursor: !currentProductionLineId ? 'not-allowed' : 'pointer',
+                          fontWeight: 'bold',
+                        }}
+                        title={!currentProductionLineId ? 'Selecteer eerst een productielijn' : 'Sla beslissing Ja op'}
+                      >
+                        ✅ Ja (melding nodig)
+                      </button>
+                      <button
+                        onClick={() => decisionMutation.mutate('Nee')}
+                        disabled={decisionMutation.isPending || !currentProductionLineId}
+                        style={{
+                          background: !currentProductionLineId ? '#6c757d' : '#dc3545',
+                          color: 'white',
+                          padding: '0.65rem 1.25rem',
+                          fontSize: '0.95rem',
+                          border: 'none',
+                          borderRadius: '4px',
+                          cursor: !currentProductionLineId ? 'not-allowed' : 'pointer',
+                          fontWeight: 'bold',
+                        }}
+                        title={!currentProductionLineId ? 'Selecteer eerst een productielijn' : 'Sla beslissing Nee op'}
+                      >
+                        ❌ Nee (melding niet nodig)
+                      </button>
+                    </div>
+
                     <div style={{ marginBottom: '1rem' }}>
                       <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '0.5rem', color: '#343a40' }}>
                         Opmerkingen {currentLineDecision?.decision ? '(toevoegen/bijwerken)' : '(optioneel)'}

@@ -211,7 +211,7 @@ export async function ensureCorrectionListProductForChartProduct(
     `INSERT INTO products
       (production_line_id, code, name, type, description, geometry, is_active)
      VALUES ($1, $2, $3, 'publication', $4, $5, $6)
-     ON CONFLICT (code) DO UPDATE
+     ON CONFLICT (production_line_id, code) DO UPDATE
      SET production_line_id = EXCLUDED.production_line_id,
          name = EXCLUDED.name,
          type = EXCLUDED.type,
