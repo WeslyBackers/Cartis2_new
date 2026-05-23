@@ -46,6 +46,15 @@ router.get('/', authenticate, async (req: AuthRequest, res) => {
             WHERE tpls_filter.task_id = t.id
               AND tpls_filter.production_line_id = $${paramCount}
           )
+          OR EXISTS (
+            SELECT 1
+            FROM task_notifications tn_filter
+            JOIN notification_decisions nd_filter
+              ON nd_filter.notification_id = tn_filter.notification_id
+            WHERE tn_filter.task_id = t.id
+              AND nd_filter.production_line_id = $${paramCount}
+              AND nd_filter.decision = 'Ja'
+          )
         )
       `;
       params.push(productionLineId);
@@ -54,7 +63,7 @@ router.get('/', authenticate, async (req: AuthRequest, res) => {
     let query = `
       SELECT t.*,
         COUNT(*) OVER() as total_count,
-        tpls.status as production_line_status,
+        COALESCE(tpls.status, 'under_construction') as production_line_status,
         tpls.wait_for_zk as wait_for_zk,
         COALESCE(
           json_agg(
@@ -108,7 +117,7 @@ router.get('/', authenticate, async (req: AuthRequest, res) => {
 
     if (status) {
       paramCount++;
-      query += ` AND tpls.status = $${paramCount}`;
+      query += ` AND COALESCE(tpls.status, 'under_construction') = $${paramCount}`;
       params.push(status);
     }
 
@@ -148,7 +157,7 @@ router.get('/', authenticate, async (req: AuthRequest, res) => {
     }
 
     query += `
-      GROUP BY t.id, tpls.status, tpls.wait_for_zk
+      GROUP BY t.id, COALESCE(tpls.status, 'under_construction'), tpls.wait_for_zk
       ORDER BY t.created_at DESC
       LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
     `;

@@ -859,6 +859,7 @@ export default function Notifications() {
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      await queryClient.refetchQueries({ queryKey: ['notifications'] });
       await queryClient.invalidateQueries({ queryKey: ['notification', expandedId] });
       await queryClient.refetchQueries({ queryKey: ['notificationComments', expandedId] });
       setNotes('');
@@ -877,8 +878,9 @@ export default function Notifications() {
         )
       );
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      await queryClient.refetchQueries({ queryKey: ['notifications'] });
       setSelectedIds([]);
       setBulkNotes('');
     },

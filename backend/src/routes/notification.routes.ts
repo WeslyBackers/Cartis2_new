@@ -437,6 +437,15 @@ async function syncDetectedProductsToLinkedTasks(notificationId: number): Promis
              WHERE tpls.task_id = t.id
                AND tpls.production_line_id = p.production_line_id
            )
+           OR EXISTS (
+             SELECT 1
+             FROM task_notifications tn2
+             JOIN notification_decisions nd2
+               ON nd2.notification_id = tn2.notification_id
+             WHERE tn2.task_id = t.id
+               AND nd2.production_line_id = p.production_line_id
+               AND nd2.decision = 'Ja'
+           )
          )
        ON CONFLICT (task_id, product_id) DO NOTHING
        RETURNING id`,
