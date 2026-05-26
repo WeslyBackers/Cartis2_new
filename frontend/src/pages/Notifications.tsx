@@ -311,6 +311,7 @@ const collectNotificationGeometries = (notification: any, coordinates: any[]) =>
           id: `notification-${notification.id}-${index}`,
           code: notification.code || '',
           title: notification.title || '',
+          content: notification.content || '',
           type: 'main',
           source: notification.source || ''
         }
@@ -358,6 +359,15 @@ const collectNotificationGeometries = (notification: any, coordinates: any[]) =>
   }
   
   return features;
+};
+
+const escapeXml = (value: any): string => {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
 };
 
 // Convert a single GeoJSON geometry to GML markup
@@ -503,7 +513,7 @@ const exportNotificationToGML = async (notification: any) => {
     Object.keys(feature.properties).forEach(key => {
       const value = feature.properties[key];
       if (value) {
-        gml += `      <${key}>${value}</${key}>
+        gml += `      <${key}>${escapeXml(value)}</${key}>
 `;
       }
     });

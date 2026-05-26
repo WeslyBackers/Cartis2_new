@@ -405,27 +405,13 @@ async function detectAndLinkProductsForNotification(notificationId: number): Pro
 
 async function syncDetectedProductsToLinkedTasks(notificationId: number): Promise<void> {
   try {
-    const insertedResult = await pool.query(
-      `INSERT INTO task_products (task_id, product_id, product_version_id, status, created_at, updated_at)
-       SELECT DISTINCT
-         t.id,
-         p.id,
-         pv.id,
-         'hoog_te_verwerken',
-         CURRENT_TIMESTAMP,
-         CURRENT_TIMESTAMP
+    // Find (task_id, product_id) pairs that should be linked but aren't yet.
+    const pendingResult = await pool.query(
+      `SELECT DISTINCT t.id AS task_id, p.id AS product_id
        FROM task_notifications tn
        JOIN tasks t ON t.id = tn.task_id
        JOIN notifications_products np ON np.notification_id = tn.notification_id
        JOIN products p ON p.id = np.product_id
-       LEFT JOIN LATERAL (
-         SELECT id
-         FROM product_versions
-         WHERE product_id = p.id
-           AND status IN ('in behandeling', 'in inspectie', 'in_progress', 'in_inspectie', 'ready')
-         ORDER BY created_at DESC
-         LIMIT 1
-       ) pv ON true
        WHERE tn.notification_id = $1
          AND np.is_relevant = true
          AND p.is_active = true
@@ -447,14 +433,39 @@ async function syncDetectedProductsToLinkedTasks(notificationId: number): Promis
                AND nd2.decision = 'Ja'
            )
          )
-       ON CONFLICT (task_id, product_id) DO NOTHING
-       RETURNING id`,
+         AND NOT EXISTS (
+           SELECT 1 FROM task_products tp
+           WHERE tp.task_id = t.id AND tp.product_id = p.id
+         )`,
       [notificationId]
     );
 
-    if (insertedResult.rows.length > 0) {
+    let syncedCount = 0;
+
+    for (const row of pendingResult.rows) {
+      // Ensure an active product version exists; create one if not.
+      const versionId = await getOrCreateInProgressProductVersion(
+        Number(row.product_id),
+        {},
+        pool
+      );
+
+      const insertResult = await pool.query(
+        `INSERT INTO task_products (task_id, product_id, product_version_id, status, created_at, updated_at)
+         VALUES ($1, $2, $3, 'hoog_te_verwerken', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+         ON CONFLICT (task_id, product_id) DO NOTHING
+         RETURNING id`,
+        [row.task_id, row.product_id, versionId]
+      );
+
+      if (insertResult.rows.length > 0) {
+        syncedCount++;
+      }
+    }
+
+    if (syncedCount > 0) {
       console.log(
-        `[Product Detection] ✓ Notification ${notificationId}: Synced ${insertedResult.rows.length} product link(s) into related task(s)`
+        `[Product Detection] ✓ Notification ${notificationId}: Synced ${syncedCount} product link(s) into related task(s)`
       );
     }
   } catch (error) {

@@ -434,12 +434,14 @@ export default function TaskDetail() {
     }
   }, [workflow]);
 
-  // Initialize selected map production lines with task's production line
+  // Initialize selected map production lines with active production line, fallback to task's line
   useEffect(() => {
-    if (task?.production_line_id && selectedMapProductionLines.length === 0) {
-      setSelectedMapProductionLines([task.production_line_id]);
+    if (selectedMapProductionLines.length !== 0) return;
+    const lineId = currentProductionLineId ?? task?.production_line_id;
+    if (lineId) {
+      setSelectedMapProductionLines([lineId]);
     }
-  }, [task?.production_line_id]);
+  }, [task?.production_line_id, currentProductionLineId]);
 
   useEffect(() => {
     if (selectedProductLineId) return;

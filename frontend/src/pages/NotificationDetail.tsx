@@ -141,6 +141,7 @@ const collectAllGeometries = (notification: any, coordinates: any[]) => {
           id: `notification-${notification.id}-${index}`,
           code: notification.code || '',
           title: notification.title || '',
+          content: notification.content || '',
           type: 'main',
           source: notification.source || ''
         }
@@ -188,6 +189,15 @@ const collectAllGeometries = (notification: any, coordinates: any[]) => {
   }
   
   return features;
+};
+
+const escapeXml = (value: any): string => {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
 };
 
 const parseGeoJsonObject = (value: any): any | null => {
@@ -386,7 +396,7 @@ const exportToGML = (notification: any, coordinates: any[]) => {
     Object.keys(feature.properties).forEach(key => {
       const value = feature.properties[key];
       if (value) {
-        gml += `      <${key}>${value}</${key}>
+        gml += `      <${key}>${escapeXml(value)}</${key}>
 `;
       }
     });
