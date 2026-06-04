@@ -5,16 +5,6 @@
 
 import pool from '../config/database';
 
-interface Point {
-  latitude: number;
-  longitude: number;
-}
-
-interface GeoJSONGeometry {
-  type: string;
-  coordinates: any[];
-}
-
 function removeZCoordinates(geojson: any): any {
   if (!geojson) {
     return geojson;
@@ -87,78 +77,6 @@ function extractIndividualGeometries(geojson: any): any[] {
 }
 
 /**
- * Check if a point is inside a polygon using ray casting algorithm
- */
-function pointInPolygon(point: [number, number], polygon: number[][][]): boolean {
-  const [lon, lat] = point;
-  let inside = false;
-
-  // Get the outer ring (first element of polygon coordinates)
-  const ring = polygon[0];
-
-  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-    const [xi, yi] = ring[i];
-    const [xj, yj] = ring[j];
-
-    const intersect =
-      yi > lat !== yj > lat &&
-      lon < ((xj - xi) * (lat - yi)) / (yj - yi) + xi;
-
-    if (intersect) inside = !inside;
-  }
-
-  return inside;
-}
-
-/**
- * Check if a point is inside a MultiPolygon
- */
-function pointInMultiPolygon(point: [number, number], multiPolygon: number[][][][]): boolean {
-  return multiPolygon.some(polygon => pointInPolygon(point, polygon));
-}
-
-/**
- * Extract all points from a geometry
- */
-function extractPointsFromGeometry(geometry: GeoJSONGeometry): [number, number][] {
-  const points: [number, number][] = [];
-
-  switch (geometry.type) {
-    case 'Point':
-      points.push(geometry.coordinates as [number, number]);
-      break;
-
-    case 'MultiPoint':
-      points.push(...(geometry.coordinates as [number, number][]));
-      break;
-
-    case 'LineString':
-      points.push(...(geometry.coordinates as [number, number][]));
-      break;
-
-    case 'MultiLineString':
-      geometry.coordinates.forEach(line => {
-        points.push(...(line as [number, number][]));
-      });
-      break;
-
-    case 'Polygon':
-      // Only use outer ring for testing
-      points.push(...(geometry.coordinates[0] as [number, number][]));
-      break;
-
-    case 'MultiPolygon':
-      // Only use outer rings
-      geometry.coordinates.forEach(polygon => {
-        points.push(...(polygon[0] as [number, number][]));
-      });
-      break;
-  }
-
-  return points;
-}
-
-/**
  * Detect which zones contain or intersect with a notification's geometry
  */
 export async function detectAffectedZones(notificationId: number): Promise<number[]> {
@@ -177,8 +95,8 @@ export async function detectAffectedZones(notificationId: number): Promise<numbe
 
     const notificationGeometry = notificationResult.rows[0].geometry;
     
-    // Collect all points to test
-    const testPoints: [number, number][] = [];
+    // Collect all geometries to test against zone polygons
+    const testGeometries: string[] = [];
 
     // Parse notification geometry if it exists
     if (notificationGeometry) {
@@ -193,7 +111,7 @@ export async function detectAffectedZones(notificationId: number): Promise<numbe
         const cleanedGeom = removeZCoordinates(geom);
         const extractedGeometries = extractIndividualGeometries(cleanedGeom);
         extractedGeometries.forEach((singleGeometry) => {
-          testPoints.push(...extractPointsFromGeometry(singleGeometry));
+          testGeometries.push(JSON.stringify(singleGeometry));
         });
       } catch (error) {
         console.error('Error parsing notification geometry:', error);
@@ -219,57 +137,52 @@ export async function detectAffectedZones(notificationId: number): Promise<numbe
           const cleanedGeom = removeZCoordinates(geom);
           const extractedGeometries = extractIndividualGeometries(cleanedGeom);
           extractedGeometries.forEach((singleGeometry) => {
-            testPoints.push(...extractPointsFromGeometry(singleGeometry));
+            testGeometries.push(JSON.stringify(singleGeometry));
           });
         } catch (error) {
           console.error('Error parsing coordinate geometry:', error);
         }
       } else if (coord.latitude && coord.longitude && parseFloat(coord.latitude) !== 0) {
         // Note: GeoJSON uses [longitude, latitude] order
-        testPoints.push([parseFloat(coord.longitude), parseFloat(coord.latitude)]);
+        testGeometries.push(
+          JSON.stringify({
+            type: 'Point',
+            coordinates: [parseFloat(coord.longitude), parseFloat(coord.latitude)]
+          })
+        );
       }
     });
 
-    if (testPoints.length === 0) {
+    if (testGeometries.length === 0) {
       return [];
     }
 
-    // Get all zone coverages
-    const zonesResult = await client.query(
-      `SELECT c.id, c.code, c.name, c.geometry
-       FROM kml_coverages c
-       JOIN kml_files f ON c.kml_file_id = f.id
-       WHERE f.category = 'zones'`
-    );
+    const affectedZoneIds = new Set<number>();
 
-    const affectedZoneIds: number[] = [];
-
-    // Test each zone
-    for (const zone of zonesResult.rows) {
+    // Test each notification geometry against all zones using PostGIS intersections.
+    for (const geometry of testGeometries) {
       try {
-        const zoneGeometry = typeof zone.geometry === 'string'
-          ? JSON.parse(zone.geometry)
-          : zone.geometry;
+        const zonesResult = await client.query(
+          `SELECT DISTINCT c.id
+           FROM kml_coverages c
+           JOIN kml_files f ON c.kml_file_id = f.id
+           WHERE f.category = 'zones'
+             AND ST_Intersects(
+               ST_MakeValid(ST_Force2D(ST_GeomFromGeoJSON(c.geometry::text))),
+               ST_MakeValid(ST_Force2D(ST_GeomFromGeoJSON($1)))
+             )`,
+          [geometry]
+        );
 
-        // Check if any notification point falls within this zone
-        const isAffected = testPoints.some(point => {
-          if (zoneGeometry.type === 'Polygon') {
-            return pointInPolygon(point, zoneGeometry.coordinates);
-          } else if (zoneGeometry.type === 'MultiPolygon') {
-            return pointInMultiPolygon(point, zoneGeometry.coordinates);
-          }
-          return false;
-        });
-
-        if (isAffected) {
-          affectedZoneIds.push(zone.id);
+        for (const zone of zonesResult.rows) {
+          affectedZoneIds.add(zone.id);
         }
       } catch (error) {
-        console.error(`Error processing zone ${zone.code}:`, error);
+        console.error('Error processing notification geometry for zone detection:', error);
       }
     }
 
-    return affectedZoneIds;
+    return Array.from(affectedZoneIds);
 
   } finally {
     client.release();

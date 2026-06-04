@@ -16,82 +16,75 @@ const pool = new Pool({
   password: process.env.DB_PASSWORD || '',
 });
 
-/**
- * Check if a point is inside a polygon using ray casting algorithm
- */
-function pointInPolygon(point, polygon) {
-  const [lon, lat] = point;
-  let inside = false;
-
-  // Get the outer ring (first element of polygon coordinates)
-  const ring = polygon[0];
-
-  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-    const [xi, yi] = ring[i];
-    const [xj, yj] = ring[j];
-
-    const intersect =
-      yi > lat !== yj > lat &&
-      lon < ((xj - xi) * (lat - yi)) / (yj - yi) + xi;
-
-    if (intersect) inside = !inside;
+function removeZCoordinates(geojson) {
+  if (!geojson) {
+    return geojson;
   }
 
-  return inside;
-}
-
-/**
- * Check if a point is inside a MultiPolygon
- */
-function pointInMultiPolygon(point, multiPolygon) {
-  return multiPolygon.some(polygon => pointInPolygon(point, polygon));
-}
-
-/**
- * Extract all points from a geometry
- */
-function extractPointsFromGeometry(geometry) {
-  const points = [];
-
-  switch (geometry.type) {
-    case 'Point':
-      points.push(geometry.coordinates);
-      break;
-
-    case 'MultiPoint':
-      points.push(...geometry.coordinates);
-      break;
-
-    case 'LineString':
-      points.push(...geometry.coordinates);
-      break;
-
-    case 'MultiLineString':
-      geometry.coordinates.forEach(line => {
-        points.push(...line);
-      });
-      break;
-
-    case 'Polygon':
-      // Only use outer ring for testing
-      points.push(...geometry.coordinates[0]);
-      break;
-
-    case 'MultiPolygon':
-      // Only use outer rings
-      geometry.coordinates.forEach(polygon => {
-        points.push(...polygon[0]);
-      });
-      break;
-
-    case 'GeometryCollection':
-      geometry.coordinates.forEach(geom => {
-        points.push(...extractPointsFromGeometry(geom));
-      });
-      break;
+  if (geojson.type === 'Feature') {
+    return {
+      ...geojson,
+      geometry: removeZCoordinates(geojson.geometry)
+    };
   }
 
-  return points;
+  if (geojson.type === 'FeatureCollection') {
+    return {
+      ...geojson,
+      features: (geojson.features || []).map((feature) => removeZCoordinates(feature))
+    };
+  }
+
+  if (geojson.type === 'GeometryCollection') {
+    return {
+      ...geojson,
+      geometries: (geojson.geometries || []).map((geometry) => removeZCoordinates(geometry))
+    };
+  }
+
+  if (!geojson.coordinates) {
+    return geojson;
+  }
+
+  const cleanCoords = (coords) => {
+    if (typeof coords[0] === 'number') {
+      return [coords[0], coords[1]];
+    }
+    return coords.map(cleanCoords);
+  };
+
+  return {
+    ...geojson,
+    coordinates: cleanCoords(geojson.coordinates)
+  };
+}
+
+function extractIndividualGeometries(geojson) {
+  if (!geojson) {
+    return [];
+  }
+
+  if (geojson.type === 'FeatureCollection') {
+    return (geojson.features || []).flatMap((feature) =>
+      extractIndividualGeometries(feature?.geometry)
+    );
+  }
+
+  if (geojson.type === 'Feature') {
+    return extractIndividualGeometries(geojson.geometry);
+  }
+
+  if (geojson.type === 'GeometryCollection') {
+    return (geojson.geometries || []).flatMap((geometry) =>
+      extractIndividualGeometries(geometry)
+    );
+  }
+
+  if (geojson.type && geojson.coordinates) {
+    return [geojson];
+  }
+
+  return [];
 }
 
 /**
@@ -110,8 +103,8 @@ async function detectAffectedZones(client, notificationId) {
 
   const notificationGeometry = notificationResult.rows[0].geometry;
   
-  // Collect all points to test
-  const testPoints = [];
+  // Collect all geometries to test against zone polygons
+  const testGeometries = [];
 
   // Parse notification geometry if it exists
   if (notificationGeometry) {
@@ -123,7 +116,11 @@ async function detectAffectedZones(client, notificationId) {
       if (typeof geom === 'string') {
         geom = JSON.parse(geom);
       }
-      testPoints.push(...extractPointsFromGeometry(geom));
+      const cleanedGeom = removeZCoordinates(geom);
+      const extractedGeometries = extractIndividualGeometries(cleanedGeom);
+      extractedGeometries.forEach((singleGeometry) => {
+        testGeometries.push(JSON.stringify(singleGeometry));
+      });
     } catch (error) {
       console.error(`  ⚠ Error parsing notification ${notificationId} geometry:`, error.message);
     }
@@ -146,63 +143,62 @@ async function detectAffectedZones(client, notificationId) {
           if (typeof geom === 'string') {
             geom = JSON.parse(geom);
           }
-          testPoints.push(...extractPointsFromGeometry(geom));
+          const cleanedGeom = removeZCoordinates(geom);
+          const extractedGeometries = extractIndividualGeometries(cleanedGeom);
+          extractedGeometries.forEach((singleGeometry) => {
+            testGeometries.push(JSON.stringify(singleGeometry));
+          });
         } catch (error) {
           // Ignore parsing errors for additional coordinates
         }
       } else if (coord.latitude && coord.longitude && parseFloat(coord.latitude) !== 0) {
         // Note: GeoJSON uses [longitude, latitude] order
-        testPoints.push([parseFloat(coord.longitude), parseFloat(coord.latitude)]);
+        testGeometries.push(
+          JSON.stringify({
+            type: 'Point',
+            coordinates: [parseFloat(coord.longitude), parseFloat(coord.latitude)]
+          })
+        );
       }
     });
   } catch (error) {
     // Table might not exist, continue without additional coordinates
   }
 
-  if (testPoints.length === 0) {
+  if (testGeometries.length === 0) {
     return [];
   }
 
-  // Get all zone coverages
-  const zonesResult = await client.query(
-    `SELECT c.id, c.code, c.name, c.geometry
-     FROM kml_coverages c
-     JOIN kml_files f ON c.kml_file_id = f.id
-     WHERE f.category = 'zones'`
-  );
+  const affectedZones = new Map();
 
-  const affectedZones = [];
-
-  // Test each zone
-  for (const zone of zonesResult.rows) {
+  // Test each geometry against all zones using PostGIS intersections.
+  for (const geometry of testGeometries) {
     try {
-      const zoneGeometry = typeof zone.geometry === 'string'
-        ? JSON.parse(zone.geometry)
-        : zone.geometry;
+      const zonesResult = await client.query(
+        `SELECT DISTINCT c.id, c.code, c.name
+         FROM kml_coverages c
+         JOIN kml_files f ON c.kml_file_id = f.id
+         WHERE f.category = 'zones'
+           AND ST_Intersects(
+             ST_MakeValid(ST_Force2D(ST_GeomFromGeoJSON(c.geometry::text))),
+             ST_MakeValid(ST_Force2D(ST_GeomFromGeoJSON($1)))
+           )`,
+        [geometry]
+      );
 
-      // Check if any notification point falls within this zone
-      const isAffected = testPoints.some(point => {
-        if (zoneGeometry.type === 'Polygon') {
-          return pointInPolygon(point, zoneGeometry.coordinates);
-        } else if (zoneGeometry.type === 'MultiPolygon') {
-          return pointInMultiPolygon(point, zoneGeometry.coordinates);
-        }
-        return false;
-      });
-
-      if (isAffected) {
-        affectedZones.push({
+      zonesResult.rows.forEach((zone) => {
+        affectedZones.set(zone.id, {
           id: zone.id,
           code: zone.code,
           name: zone.name
         });
-      }
+      });
     } catch (error) {
-      console.error(`  ⚠ Error processing zone ${zone.code}:`, error.message);
+      console.error('  ⚠ Error processing geometry for zone detection:', error.message);
     }
   }
 
-  return affectedZones;
+  return Array.from(affectedZones.values());
 }
 
 /**
