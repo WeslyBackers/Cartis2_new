@@ -414,7 +414,6 @@ async function syncDetectedProductsToLinkedTasks(notificationId: number): Promis
        JOIN products p ON p.id = np.product_id
        WHERE tn.notification_id = $1
          AND np.is_relevant = true
-         AND p.is_active = true
          AND (
            t.production_line_id = p.production_line_id
            OR EXISTS (
