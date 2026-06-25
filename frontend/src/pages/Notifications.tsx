@@ -731,7 +731,7 @@ export default function Notifications() {
     return () => { document.title = 'CARTIS 2.0'; };
   }, [currentProductionLineId, productionLines]);
 
-  const { data, isLoading, refetch: _refetch } = useQuery({
+  const { data, isLoading, refetch: refetchNotifications } = useQuery({
     queryKey: ['notifications', currentProductionLineId, showAllNotices, search, page],
     queryFn: async () => {
       const params: any = {
@@ -741,7 +741,7 @@ export default function Notifications() {
         page,
         limit: 50,
       };
-      
+
       const response = await api.get('/notifications', { params });
       return response.data;
     },
@@ -869,9 +869,9 @@ export default function Notifications() {
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['notifications'] });
-      await queryClient.refetchQueries({ queryKey: ['notifications'] });
       await queryClient.invalidateQueries({ queryKey: ['notification', expandedId] });
-      await queryClient.refetchQueries({ queryKey: ['notificationComments', expandedId] });
+      await queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      await refetchNotifications();
       setNotes('');
     },
   });
@@ -890,7 +890,8 @@ export default function Notifications() {
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['notifications'] });
-      await queryClient.refetchQueries({ queryKey: ['notifications'] });
+      await queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      await refetchNotifications();
       setSelectedIds([]);
       setBulkNotes('');
     },
@@ -906,9 +907,10 @@ export default function Notifications() {
         taskMode,
       });
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['notifications'] });
-      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      await queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      await refetchNotifications();
       setSelectedIds([]);
       setBulkNotes('');
       setShowTaskCreationModal(false);

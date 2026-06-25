@@ -8,6 +8,30 @@ import { v2 as googleTranslate } from '@google-cloud/translate';
 
 const router = Router();
 
+let taskInfoRequestsTableReady = false;
+
+async function ensureTaskInfoRequestsTable(): Promise<void> {
+  if (taskInfoRequestsTableReady) {
+    return;
+  }
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS task_info_requests (
+      id SERIAL PRIMARY KEY,
+      task_id INTEGER REFERENCES tasks(id) ON DELETE CASCADE,
+      recipient VARCHAR(255) NOT NULL,
+      subject VARCHAR(500) NOT NULL,
+      body TEXT NOT NULL,
+      created_by INTEGER REFERENCES users(id),
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_task_info_requests_task ON task_info_requests(task_id)');
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_task_info_requests_created_by ON task_info_requests(created_by)');
+  taskInfoRequestsTableReady = true;
+}
+
 // Get all tasks (with filters)
 router.get('/', authenticate, async (req: AuthRequest, res) => {
   try {
@@ -1399,6 +1423,8 @@ router.post('/:id/articles/translate', authenticate, async (req: AuthRequest, re
 // Get all info requests for a task
 router.get('/:id/info-requests', authenticate, async (req: AuthRequest, res) => {
   try {
+    await ensureTaskInfoRequestsTable();
+
     const { id } = req.params;
     const result = await pool.query(
       `SELECT tir.*, u.first_name, u.last_name
@@ -1418,6 +1444,8 @@ router.get('/:id/info-requests', authenticate, async (req: AuthRequest, res) => 
 // Create a new info request
 router.post('/:id/info-requests', authenticate, async (req: AuthRequest, res) => {
   try {
+    await ensureTaskInfoRequestsTable();
+
     const { id } = req.params;
     const { recipient, subject, body } = req.body;
     const userId = (req as AuthRequest).user?.id;

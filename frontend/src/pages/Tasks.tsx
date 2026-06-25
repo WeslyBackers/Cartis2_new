@@ -465,7 +465,7 @@ export default function Tasks() {
       window.location.href = mailtoUrl;
     } catch (error) {
       console.error('Error saving info request:', error);
-      alert('Fout bij opslaan van e-mailverzoek');
+      alert(`Fout bij opslaan van e-mailverzoek: ${getApiErrorMessage(error, 'onbekende fout')}`);
     }
   };
 

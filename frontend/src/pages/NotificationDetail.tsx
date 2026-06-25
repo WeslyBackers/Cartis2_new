@@ -1225,7 +1225,7 @@ export default function NotificationDetail() {
       window.location.href = mailtoUrl;
     } catch (error) {
       console.error('Error saving notification info request:', error);
-      alert('Fout bij opslaan van e-mailverzoek');
+      alert(`Fout bij opslaan van e-mailverzoek: ${getApiErrorMessage(error, 'onbekende fout')}`);
     }
   };
 
@@ -1457,117 +1457,6 @@ export default function NotificationDetail() {
                 })()}
               </div>
 
-              <div style={{ marginTop: '0.5rem' }}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (isEmailFormVisible) {
-                      setIsEmailFormVisible(false);
-                      return;
-                    }
-                    openInfoRequestForm();
-                  }}
-                  style={{
-                    padding: '0.75rem 1.5rem',
-                    backgroundColor: '#e67700',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '4px',
-                    cursor: 'pointer',
-                    fontSize: '1rem',
-                    fontWeight: 'bold',
-                  }}
-                >
-                  {isEmailFormVisible ? 'Formulier sluiten' : 'Meer info opvragen'}
-                </button>
-
-                {isEmailFormVisible && (
-                  <div style={{ marginTop: '1rem', padding: '1rem', backgroundColor: '#fff8e1', borderRadius: '6px', border: '1px solid #ffe69c' }}>
-                    <div style={{ fontWeight: 600, color: '#7a4b00', marginBottom: '0.75rem' }}>
-                      Nieuwe e-mail opstellen
-                    </div>
-                    <div style={{ display: 'grid', gap: '0.75rem' }}>
-                      <div>
-                        <label style={{ fontWeight: 'bold', color: '#6c757d', display: 'block', marginBottom: '0.25rem', fontSize: '0.9rem' }}>
-                          Aan
-                        </label>
-                        <input
-                          type="email"
-                          value={emailRecipient}
-                          onChange={(e) => setEmailRecipient(e.target.value)}
-                          placeholder="naam@example.com"
-                          style={{ width: '100%', padding: '0.65rem 0.75rem', borderRadius: '4px', border: '1px solid #ced4da', fontSize: '0.95rem' }}
-                        />
-                      </div>
-                      <div>
-                        <label style={{ fontWeight: 'bold', color: '#6c757d', display: 'block', marginBottom: '0.25rem', fontSize: '0.9rem' }}>
-                          Onderwerp
-                        </label>
-                        <input
-                          type="text"
-                          value={emailSubject}
-                          onChange={(e) => setEmailSubject(e.target.value)}
-                          placeholder="Onderwerp"
-                          style={{ width: '100%', padding: '0.65rem 0.75rem', borderRadius: '4px', border: '1px solid #ced4da', fontSize: '0.95rem' }}
-                        />
-                      </div>
-                      <div>
-                        <label style={{ fontWeight: 'bold', color: '#6c757d', display: 'block', marginBottom: '0.25rem', fontSize: '0.9rem' }}>
-                          Bericht
-                        </label>
-                        <textarea
-                          value={emailBody}
-                          onChange={(e) => setEmailBody(e.target.value)}
-                          rows={8}
-                          style={{ width: '100%', padding: '0.65rem 0.75rem', borderRadius: '4px', border: '1px solid #ced4da', fontSize: '0.95rem', resize: 'vertical', fontFamily: 'inherit' }}
-                        />
-                      </div>
-                      <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-                        <button
-                          type="button"
-                          onClick={openInfoRequestForm}
-                          style={{
-                            padding: '0.55rem 0.9rem',
-                            backgroundColor: '#6c757d',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '4px',
-                            cursor: 'pointer',
-                            fontSize: '0.9rem',
-                          }}
-                        >
-                          Herstel voorstel
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleCreateInfoRequestEmail}
-                          disabled={createInfoRequestMutation.isPending || !emailRecipient.trim() || !emailSubject.trim() || !emailBody.trim()}
-                          style={{
-                            padding: '0.55rem 0.9rem',
-                            backgroundColor: '#e67700',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '4px',
-                            cursor:
-                              createInfoRequestMutation.isPending || !emailRecipient.trim() || !emailSubject.trim() || !emailBody.trim()
-                                ? 'not-allowed'
-                                : 'pointer',
-                            opacity:
-                              createInfoRequestMutation.isPending || !emailRecipient.trim() || !emailSubject.trim() || !emailBody.trim()
-                                ? 0.7
-                                : 1,
-                            fontSize: '0.9rem',
-                            fontWeight: 600,
-                          }}
-                        >
-                          {createInfoRequestMutation.isPending ? 'Bezig...' : 'Opslaan + Open e-mail'}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-
               {/* Opmerkingen Section */}
               <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid #e9ecef' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
@@ -1689,6 +1578,177 @@ export default function NotificationDetail() {
                 <div style={{ color: '#6c757d', fontStyle: 'italic' }}>Geen inhoud beschikbaar</div>
               )}
             </div>
+          </div>
+
+          {/* Verzoeken tot meer informatie */}
+          <div style={{ backgroundColor: 'white', padding: '1.5rem', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', color: '#343a40', marginBottom: '1.5rem' }}>
+            <h2 style={{ marginBottom: '1rem', color: '#343a40' }}>Verzoeken tot meer informatie</h2>
+            <button
+              type="button"
+              onClick={() => {
+                if (isEmailFormVisible) {
+                  setIsEmailFormVisible(false);
+                  return;
+                }
+                openInfoRequestForm();
+              }}
+              style={{
+                padding: '0.75rem 1.5rem',
+                backgroundColor: '#e67700',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontSize: '1rem',
+                fontWeight: 'bold',
+              }}
+            >
+              {isEmailFormVisible ? 'Formulier sluiten' : 'Meer info opvragen'}
+            </button>
+
+            {isEmailFormVisible && (
+              <div style={{ marginTop: '1rem', padding: '1rem', backgroundColor: '#fff8e1', borderRadius: '6px', border: '1px solid #ffe69c' }}>
+                <div style={{ fontWeight: 600, color: '#7a4b00', marginBottom: '0.75rem' }}>
+                  Nieuwe e-mail opstellen
+                </div>
+                <div style={{ display: 'grid', gap: '0.75rem' }}>
+                  <div>
+                    <label style={{ fontWeight: 'bold', color: '#6c757d', display: 'block', marginBottom: '0.25rem', fontSize: '0.9rem' }}>
+                      Aan
+                    </label>
+                    <input
+                      type="email"
+                      value={emailRecipient}
+                      onChange={(e) => setEmailRecipient(e.target.value)}
+                      placeholder="naam@example.com"
+                      style={{ width: '100%', padding: '0.65rem 0.75rem', borderRadius: '4px', border: '1px solid #ced4da', fontSize: '0.95rem' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontWeight: 'bold', color: '#6c757d', display: 'block', marginBottom: '0.25rem', fontSize: '0.9rem' }}>
+                      Onderwerp
+                    </label>
+                    <input
+                      type="text"
+                      value={emailSubject}
+                      onChange={(e) => setEmailSubject(e.target.value)}
+                      placeholder="Onderwerp"
+                      style={{ width: '100%', padding: '0.65rem 0.75rem', borderRadius: '4px', border: '1px solid #ced4da', fontSize: '0.95rem' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontWeight: 'bold', color: '#6c757d', display: 'block', marginBottom: '0.25rem', fontSize: '0.9rem' }}>
+                      Bericht
+                    </label>
+                    <textarea
+                      value={emailBody}
+                      onChange={(e) => setEmailBody(e.target.value)}
+                      rows={8}
+                      style={{ width: '100%', padding: '0.65rem 0.75rem', borderRadius: '4px', border: '1px solid #ced4da', fontSize: '0.95rem', resize: 'vertical', fontFamily: 'inherit' }}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      onClick={openInfoRequestForm}
+                      style={{
+                        padding: '0.55rem 0.9rem',
+                        backgroundColor: '#6c757d',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        fontSize: '0.9rem',
+                      }}
+                    >
+                      Herstel voorstel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleCreateInfoRequestEmail}
+                      disabled={createInfoRequestMutation.isPending || !emailRecipient.trim() || !emailSubject.trim() || !emailBody.trim()}
+                      style={{
+                        padding: '0.55rem 0.9rem',
+                        backgroundColor: '#e67700',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor:
+                          createInfoRequestMutation.isPending || !emailRecipient.trim() || !emailSubject.trim() || !emailBody.trim()
+                            ? 'not-allowed'
+                            : 'pointer',
+                        opacity:
+                          createInfoRequestMutation.isPending || !emailRecipient.trim() || !emailSubject.trim() || !emailBody.trim()
+                            ? 0.7
+                            : 1,
+                        fontSize: '0.9rem',
+                        fontWeight: 600,
+                      }}
+                    >
+                      {createInfoRequestMutation.isPending ? 'Bezig...' : 'Opslaan + Open e-mail'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {infoRequests && infoRequests.length > 0 && (
+              <div style={{ marginTop: '1rem', borderTop: '1px solid #e9ecef', paddingTop: '1rem' }}>
+                <h3
+                  style={{
+                    marginBottom: '1rem',
+                    color: '#343a40',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    userSelect: 'none',
+                    fontSize: '1.05rem',
+                  }}
+                  onClick={() => setIsInfoRequestsCollapsed(!isInfoRequestsCollapsed)}
+                >
+                  <span
+                    style={{
+                      display: 'inline-flex',
+                      transform: isInfoRequestsCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)',
+                      transition: 'transform 0.3s ease',
+                      fontSize: '1.1rem',
+                    }}
+                  >
+                    ▼
+                  </span>
+                  Verzonden verzoeken ({infoRequests.length})
+                </h3>
+                {!isInfoRequestsCollapsed && (
+                  <div style={{ display: 'grid', gap: '0.75rem' }}>
+                    {infoRequests.map((request: any) => (
+                      <div
+                        key={request.id}
+                        style={{
+                          padding: '1rem',
+                          backgroundColor: '#f8f9fa',
+                          borderRadius: '4px',
+                          border: '1px solid #e9ecef',
+                        }}
+                      >
+                        <div style={{ fontWeight: '600', color: '#343a40', marginBottom: '0.25rem' }}>
+                          Aan: {request.recipient}
+                        </div>
+                        <div style={{ fontSize: '0.85rem', color: '#6c757d', marginBottom: '0.5rem' }}>
+                          {request.first_name} {request.last_name} • {format(new Date(request.created_at), 'dd/MM/yyyy HH:mm')}
+                        </div>
+                        <div style={{ fontWeight: '500', color: '#343a40', marginBottom: '0.5rem', fontSize: '0.95rem' }}>
+                          Onderwerp: {request.subject}
+                        </div>
+                        <div style={{ fontSize: '0.9rem', color: '#343a40', lineHeight: '1.5', backgroundColor: '#ffffff', padding: '0.75rem', borderRadius: '4px', border: '1px solid #dee2e6', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                          {request.body}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Bijlagen */}
@@ -2207,63 +2267,6 @@ export default function NotificationDetail() {
               );
             })()}
           </div>
-
-          {infoRequests && infoRequests.length > 0 && (
-            <div style={{ backgroundColor: 'white', padding: '1.5rem', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', color: '#343a40', marginBottom: '1.5rem' }}>
-              <h2
-                style={{
-                  marginBottom: '1rem',
-                  color: '#343a40',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.5rem',
-                  userSelect: 'none',
-                }}
-                onClick={() => setIsInfoRequestsCollapsed(!isInfoRequestsCollapsed)}
-              >
-                <span
-                  style={{
-                    display: 'inline-flex',
-                    transform: isInfoRequestsCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)',
-                    transition: 'transform 0.3s ease',
-                    fontSize: '1.2rem',
-                  }}
-                >
-                  ▼
-                </span>
-                Verzoeken om meer informatie ({infoRequests.length})
-              </h2>
-              {!isInfoRequestsCollapsed && (
-                <div style={{ display: 'grid', gap: '0.75rem' }}>
-                  {infoRequests.map((request: any) => (
-                    <div
-                      key={request.id}
-                      style={{
-                        padding: '1rem',
-                        backgroundColor: '#f8f9fa',
-                        borderRadius: '4px',
-                        border: '1px solid #e9ecef',
-                      }}
-                    >
-                      <div style={{ fontWeight: '600', color: '#343a40', marginBottom: '0.25rem' }}>
-                        Aan: {request.recipient}
-                      </div>
-                      <div style={{ fontSize: '0.85rem', color: '#6c757d', marginBottom: '0.5rem' }}>
-                        {request.first_name} {request.last_name} • {format(new Date(request.created_at), 'dd/MM/yyyy HH:mm')}
-                      </div>
-                      <div style={{ fontWeight: '500', color: '#343a40', marginBottom: '0.5rem', fontSize: '0.95rem' }}>
-                        Onderwerp: {request.subject}
-                      </div>
-                      <div style={{ fontSize: '0.9rem', color: '#343a40', lineHeight: '1.5', backgroundColor: '#ffffff', padding: '0.75rem', borderRadius: '4px', border: '1px solid #dee2e6', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                        {request.body}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
 
           {/* Alle Opmerkingen */}
           {notification.comments && notification.comments.length > 0 && (

@@ -9,6 +9,30 @@ import { ensureCorrectionListTaskLink } from '../services/correctionList.service
 
 const router = Router();
 
+let notificationInfoRequestsTableReady = false;
+
+async function ensureNotificationInfoRequestsTable(): Promise<void> {
+  if (notificationInfoRequestsTableReady) {
+    return;
+  }
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS notification_info_requests (
+      id SERIAL PRIMARY KEY,
+      notification_id INTEGER NOT NULL REFERENCES notifications(id) ON DELETE CASCADE,
+      recipient VARCHAR(255) NOT NULL,
+      subject TEXT NOT NULL,
+      body TEXT NOT NULL,
+      created_by INTEGER REFERENCES users(id),
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_notification_info_requests_notification ON notification_info_requests(notification_id)');
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_notification_info_requests_created_by ON notification_info_requests(created_by)');
+  notificationInfoRequestsTableReady = true;
+}
+
 // Helper function to remove Z coordinates from GeoJSON
 function removeZCoordinates(geojson: any): any {
   if (!geojson) {
@@ -412,9 +436,10 @@ async function syncDetectedProductsToLinkedTasks(notificationId: number): Promis
        JOIN tasks t ON t.id = tn.task_id
        JOIN notifications_products np ON np.notification_id = tn.notification_id
        JOIN products p ON p.id = np.product_id
+       LEFT JOIN production_lines pl_product ON pl_product.id = p.production_line_id
        WHERE tn.notification_id = $1
          AND np.is_relevant = true
-         AND p.is_active = true
+         AND (p.is_active = true OR pl_product.code = 'PILOT_ENC')
          AND (
            t.production_line_id = p.production_line_id
            OR EXISTS (
@@ -1727,6 +1752,8 @@ router.get('/:id/comments', authenticate, async (req: AuthRequest, res) => {
 // Get all info requests for a notification
 router.get('/:id/info-requests', authenticate, async (req: AuthRequest, res) => {
   try {
+    await ensureNotificationInfoRequestsTable();
+
     const { id } = req.params;
     const result = await pool.query(
       `SELECT nir.*, u.first_name, u.last_name
@@ -1747,6 +1774,8 @@ router.get('/:id/info-requests', authenticate, async (req: AuthRequest, res) => 
 // Create a new info request for a notification
 router.post('/:id/info-requests', authenticate, async (req: AuthRequest, res) => {
   try {
+    await ensureNotificationInfoRequestsTable();
+
     const { id } = req.params;
     const { recipient, subject, body } = req.body;
     const userId = req.user?.id;
