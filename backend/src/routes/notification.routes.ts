@@ -9,30 +9,6 @@ import { ensureCorrectionListTaskLink } from '../services/correctionList.service
 
 const router = Router();
 
-let notificationInfoRequestsTableReady = false;
-
-async function ensureNotificationInfoRequestsTable(): Promise<void> {
-  if (notificationInfoRequestsTableReady) {
-    return;
-  }
-
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS notification_info_requests (
-      id SERIAL PRIMARY KEY,
-      notification_id INTEGER NOT NULL REFERENCES notifications(id) ON DELETE CASCADE,
-      recipient VARCHAR(255) NOT NULL,
-      subject TEXT NOT NULL,
-      body TEXT NOT NULL,
-      created_by INTEGER REFERENCES users(id),
-      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
-
-  await pool.query('CREATE INDEX IF NOT EXISTS idx_notification_info_requests_notification ON notification_info_requests(notification_id)');
-  await pool.query('CREATE INDEX IF NOT EXISTS idx_notification_info_requests_created_by ON notification_info_requests(created_by)');
-  notificationInfoRequestsTableReady = true;
-}
-
 // Helper function to remove Z coordinates from GeoJSON
 function removeZCoordinates(geojson: any): any {
   if (!geojson) {
@@ -414,90 +390,11 @@ async function detectAndLinkProductsForNotification(notificationId: number): Pro
       [notificationId]
     );
     console.log(`[Product Detection] ✓ Final verification: ${finalCountResult.rows[0].count} total products linked to notification ${notificationId}`);
-
-    // Keep task-level product lists in sync with notification-level product detection.
-    // This ensures newly auto-detected products immediately appear in task overviews/maps.
-    await syncDetectedProductsToLinkedTasks(notificationId);
-
     console.log(`[Product Detection] ========================================`);
     
   } catch (error) {
     console.error(`[Product Detection] ✗ Error for notification ${notificationId}:`, error);
     // Don't throw - we don't want product detection failures to break the main flow
-  }
-}
-
-async function syncDetectedProductsToLinkedTasks(notificationId: number): Promise<void> {
-  try {
-    // Find (task_id, product_id) pairs that should be linked but aren't yet.
-    const pendingResult = await pool.query(
-      `SELECT DISTINCT t.id AS task_id, p.id AS product_id
-       FROM task_notifications tn
-       JOIN tasks t ON t.id = tn.task_id
-       JOIN notifications_products np ON np.notification_id = tn.notification_id
-       JOIN products p ON p.id = np.product_id
-       LEFT JOIN production_lines pl_product ON pl_product.id = p.production_line_id
-       WHERE tn.notification_id = $1
-         AND np.is_relevant = true
-         AND (p.is_active = true OR pl_product.code = 'PILOT_ENC')
-         AND (
-           t.production_line_id = p.production_line_id
-           OR EXISTS (
-             SELECT 1
-             FROM task_production_line_status tpls
-             WHERE tpls.task_id = t.id
-               AND tpls.production_line_id = p.production_line_id
-           )
-           OR EXISTS (
-             SELECT 1
-             FROM task_notifications tn2
-             JOIN notification_decisions nd2
-               ON nd2.notification_id = tn2.notification_id
-             WHERE tn2.task_id = t.id
-               AND nd2.production_line_id = p.production_line_id
-               AND nd2.decision = 'Ja'
-           )
-         )
-         AND NOT EXISTS (
-           SELECT 1 FROM task_products tp
-           WHERE tp.task_id = t.id AND tp.product_id = p.id
-         )`,
-      [notificationId]
-    );
-
-    let syncedCount = 0;
-
-    for (const row of pendingResult.rows) {
-      // Ensure an active product version exists; create one if not.
-      const versionId = await getOrCreateInProgressProductVersion(
-        Number(row.product_id),
-        {},
-        pool
-      );
-
-      const insertResult = await pool.query(
-        `INSERT INTO task_products (task_id, product_id, product_version_id, status, created_at, updated_at)
-         VALUES ($1, $2, $3, 'hoog_te_verwerken', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-         ON CONFLICT (task_id, product_id) DO NOTHING
-         RETURNING id`,
-        [row.task_id, row.product_id, versionId]
-      );
-
-      if (insertResult.rows.length > 0) {
-        syncedCount++;
-      }
-    }
-
-    if (syncedCount > 0) {
-      console.log(
-        `[Product Detection] ✓ Notification ${notificationId}: Synced ${syncedCount} product link(s) into related task(s)`
-      );
-    }
-  } catch (error) {
-    console.error(
-      `[Product Detection] ✗ Notification ${notificationId}: Failed to sync detected products to tasks:`,
-      error
-    );
   }
 }
 
@@ -556,7 +453,7 @@ router.get('/', authenticate, async (req: AuthRequest, res) => {
                 SELECT pv.id
                 FROM product_versions pv
                 WHERE pv.product_id = p.id
-                  AND pv.status IN ('in behandeling', 'in inspectie', 'in_progress', 'in_inspectie', 'ready')
+                  AND pv.status = 'in_progress'
                 ORDER BY pv.created_at DESC
                 LIMIT 1
               ),
@@ -564,7 +461,7 @@ router.get('/', authenticate, async (req: AuthRequest, res) => {
                 SELECT pv.version_number
                 FROM product_versions pv
                 WHERE pv.product_id = p.id
-                  AND pv.status IN ('in behandeling', 'in inspectie', 'in_progress', 'in_inspectie', 'ready')
+                  AND pv.status = 'in_progress'
                 ORDER BY pv.created_at DESC
                 LIMIT 1
               )
@@ -743,7 +640,7 @@ router.get('/:id', authenticate, async (req: AuthRequest, res) => {
                 SELECT pv.id
                 FROM product_versions pv
                 WHERE pv.product_id = p.id
-                  AND pv.status IN ('in behandeling', 'in inspectie', 'in_progress', 'in_inspectie', 'ready')
+                  AND pv.status = 'in_progress'
                 ORDER BY pv.created_at DESC
                 LIMIT 1
               ),
@@ -751,7 +648,7 @@ router.get('/:id', authenticate, async (req: AuthRequest, res) => {
                 SELECT pv.version_number
                 FROM product_versions pv
                 WHERE pv.product_id = p.id
-                  AND pv.status IN ('in behandeling', 'in inspectie', 'in_progress', 'in_inspectie', 'ready')
+                  AND pv.status = 'in_progress'
                 ORDER BY pv.created_at DESC
                 LIMIT 1
               ),
@@ -1137,42 +1034,6 @@ router.post('/:id/decide', authenticate, async (req: AuthRequest, res) => {
         console.error('Product detection during decision failed (continuing task creation):', productDetectionError);
       }
 
-      // Mirror ZK 'Ja' to PILOT_ENC only when a PILOT_ENC product is linked to this notification.
-      const lineIdsResult = await pool.query(
-        `SELECT id, code FROM production_lines WHERE code IN ('ZK', 'PILOT_ENC')`
-      );
-      const zkLineId = lineIdsResult.rows.find((line: any) => line.code === 'ZK')?.id;
-      const pilotEncLineId = lineIdsResult.rows.find((line: any) => line.code === 'PILOT_ENC')?.id;
-
-      let shouldMirrorToPilotEnc = false;
-
-      if (zkLineId && pilotEncLineId && Number(productionLineId) === Number(zkLineId)) {
-        const hasPilotProductsResult = await pool.query(
-          `SELECT EXISTS (
-             SELECT 1
-             FROM notifications_products np
-             JOIN products p ON p.id = np.product_id
-             WHERE np.notification_id = $1
-               AND np.is_relevant = true
-               AND p.production_line_id = $2
-           ) AS has_pilot_products`,
-          [id, pilotEncLineId]
-        );
-
-        shouldMirrorToPilotEnc = Boolean(hasPilotProductsResult.rows[0]?.has_pilot_products);
-
-        if (shouldMirrorToPilotEnc) {
-          await pool.query(
-            `INSERT INTO notification_decisions
-              (notification_id, production_line_id, decision, decided_by, decided_at, notes)
-             VALUES ($1, $2, 'Ja', $3, CURRENT_TIMESTAMP, $4)
-             ON CONFLICT (notification_id, production_line_id)
-             DO UPDATE SET decision = 'Ja', decided_by = $3, decided_at = CURRENT_TIMESTAMP, notes = $4`,
-            [id, pilotEncLineId, userId, notes]
-          );
-        }
-      }
-
       // Reuse existing task linked to this notice when available, otherwise create a new task number.
       const existingTaskResult = await pool.query(
         `SELECT t.id
@@ -1288,18 +1149,6 @@ router.post('/:id/decide', authenticate, async (req: AuthRequest, res) => {
         [taskId, productionLineId, 'under_construction']
       );
 
-      if (shouldMirrorToPilotEnc && pilotEncLineId) {
-        await pool.query(
-          `INSERT INTO task_production_line_status (task_id, production_line_id, status, wait_for_zk)
-           VALUES ($1, $2, $3, TRUE)
-           ON CONFLICT (task_id, production_line_id) DO NOTHING`,
-          [taskId, pilotEncLineId, 'under_construction']
-        );
-
-        // Make sure pilot products become visible in this task now that PILOT_ENC is linked to it.
-        await syncDetectedProductsToLinkedTasks(parseInt(id));
-      }
-
       if (createdNewTask) {
         // Log activity only when a new task is created.
         await pool.query(
@@ -1342,17 +1191,6 @@ router.post('/bulk-decide', authenticate, async (req: AuthRequest, res) => {
       return res.status(400).json({ error: 'No notification IDs provided' });
     }
 
-    const lineIdsResult = await pool.query(
-      `SELECT id, code FROM production_lines WHERE code IN ('ZK', 'PILOT_ENC')`
-    );
-    const zkLineId = lineIdsResult.rows.find((line: any) => line.code === 'ZK')?.id;
-    const pilotEncLineId = lineIdsResult.rows.find((line: any) => line.code === 'PILOT_ENC')?.id;
-    const isZkJaDecision =
-      decision === 'Ja' &&
-      !!zkLineId &&
-      !!pilotEncLineId &&
-      Number(productionLineId) === Number(zkLineId);
-
     // Record decisions for all notifications
     for (const notifId of notificationIds) {
       await pool.query(
@@ -1379,40 +1217,6 @@ router.post('/bulk-decide', authenticate, async (req: AuthRequest, res) => {
           await detectAndLinkProductsForNotification(Number(notifId));
         } catch (productDetectionError) {
           console.error(`[Bulk Decide] Product detection failed for notification ${notifId} (continuing):`, productDetectionError);
-        }
-      }
-
-      const pilotEligibleNotificationIds = new Set<number>();
-
-      if (isZkJaDecision && pilotEncLineId) {
-        for (const notifId of notificationIds) {
-          const hasPilotProductsResult = await pool.query(
-            `SELECT EXISTS (
-               SELECT 1
-               FROM notifications_products np
-               JOIN products p ON p.id = np.product_id
-               WHERE np.notification_id = $1
-                 AND np.is_relevant = true
-                 AND p.production_line_id = $2
-             ) AS has_pilot_products`,
-            [notifId, pilotEncLineId]
-          );
-
-          const hasPilotProducts = Boolean(hasPilotProductsResult.rows[0]?.has_pilot_products);
-          if (!hasPilotProducts) {
-            continue;
-          }
-
-          pilotEligibleNotificationIds.add(Number(notifId));
-
-          await pool.query(
-            `INSERT INTO notification_decisions
-              (notification_id, production_line_id, decision, decided_by, decided_at, notes)
-             VALUES ($1, $2, 'Ja', $3, CURRENT_TIMESTAMP, $4)
-             ON CONFLICT (notification_id, production_line_id)
-             DO UPDATE SET decision = 'Ja', decided_by = $3, decided_at = CURRENT_TIMESTAMP, notes = $4`,
-            [notifId, pilotEncLineId, userId, notes]
-          );
         }
       }
 
@@ -1511,19 +1315,6 @@ router.post('/bulk-decide', authenticate, async (req: AuthRequest, res) => {
            )`,
           [taskId, productionLineId, 'under_construction']
         );
-
-        if (pilotEncLineId && pilotEligibleNotificationIds.size > 0) {
-          await pool.query(
-            `INSERT INTO task_production_line_status (task_id, production_line_id, status, wait_for_zk)
-             VALUES ($1, $2, $3, TRUE)
-             ON CONFLICT (task_id, production_line_id) DO NOTHING`,
-            [taskId, pilotEncLineId, 'under_construction']
-          );
-
-          for (const notifId of pilotEligibleNotificationIds) {
-            await syncDetectedProductsToLinkedTasks(Number(notifId));
-          }
-        }
 
         // Log activity
         await pool.query(
@@ -1651,17 +1442,6 @@ router.post('/bulk-decide', authenticate, async (req: AuthRequest, res) => {
             [taskId, productionLineId, 'under_construction']
           );
 
-          if (pilotEncLineId && pilotEligibleNotificationIds.has(Number(notifId))) {
-            await pool.query(
-              `INSERT INTO task_production_line_status (task_id, production_line_id, status, wait_for_zk)
-               VALUES ($1, $2, $3, TRUE)
-               ON CONFLICT (task_id, production_line_id) DO NOTHING`,
-              [taskId, pilotEncLineId, 'under_construction']
-            );
-
-            await syncDetectedProductsToLinkedTasks(Number(notifId));
-          }
-
           if (createdNewTask) {
             // Log activity only when a new task is created.
             await pool.query(
@@ -1752,8 +1532,6 @@ router.get('/:id/comments', authenticate, async (req: AuthRequest, res) => {
 // Get all info requests for a notification
 router.get('/:id/info-requests', authenticate, async (req: AuthRequest, res) => {
   try {
-    await ensureNotificationInfoRequestsTable();
-
     const { id } = req.params;
     const result = await pool.query(
       `SELECT nir.*, u.first_name, u.last_name
@@ -1774,8 +1552,6 @@ router.get('/:id/info-requests', authenticate, async (req: AuthRequest, res) => 
 // Create a new info request for a notification
 router.post('/:id/info-requests', authenticate, async (req: AuthRequest, res) => {
   try {
-    await ensureNotificationInfoRequestsTable();
-
     const { id } = req.params;
     const { recipient, subject, body } = req.body;
     const userId = req.user?.id;

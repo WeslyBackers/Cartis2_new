@@ -654,9 +654,26 @@ export default function Tasks() {
                       </td>
                       <td onClick={() => toggleExpand(task.id)}>{task.title}</td>
                       <td onClick={() => toggleExpand(task.id)}>
-                        {task.articles && task.articles.length > 0 ? (
-                          <div>
-                            {task.articles.map((a: any) => (
+                        <div>
+                          {task.baz_number && (
+                            <span
+                              style={{
+                                display: 'inline-block',
+                                backgroundColor: '#e9ecef',
+                                color: '#495057',
+                                padding: '0.1rem 0.4rem',
+                                borderRadius: '3px',
+                                fontSize: '0.8rem',
+                                marginRight: '0.25rem',
+                                marginBottom: '0.15rem',
+                              }}
+                              title="Taak BaZ nummer"
+                            >
+                              {task.baz_number}
+                            </span>
+                          )}
+                          {task.articles && task.articles.length > 0 ? (
+                            task.articles.map((a: any) => (
                               <span
                                 key={a.id}
                                 onClick={(e) => fetchArticlePreview(task.id, a.id, e)}
@@ -675,9 +692,11 @@ export default function Tasks() {
                               >
                                 {a.baz_number}
                               </span>
-                            ))}
-                          </div>
-                        ) : '-'}
+                            ))
+                          ) : !task.baz_number ? (
+                            '-'
+                          ) : null}
+                        </div>
                       </td>
                       <td onClick={(e) => e.stopPropagation()} style={{ textAlign: 'center' }}>
                         <input

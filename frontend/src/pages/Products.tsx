@@ -107,6 +107,8 @@ export default function Products() {
   const [editForm, setEditForm] = useState({ name: '', type: '', description: '', isActive: true });
   const [creatingProduct, setCreatingProduct] = useState(false);
   const [createForm, setCreateForm] = useState({ code: '', name: '', type: '', description: '' });
+  const [importingKml, setImportingKml] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
   const queryClient = useQueryClient();
 
   // Check if user can edit for the current production line
@@ -134,6 +136,24 @@ export default function Products() {
       queryClient.invalidateQueries({ queryKey: ['products'] });
       setCreatingProduct(false);
       setCreateForm({ code: '', name: '', type: '', description: '' });
+    },
+  });
+
+  const importKmlMutation = useMutation({
+    mutationFn: async (payload: { file: File; productionLineId: number }) => {
+      const formData = new FormData();
+      formData.append('file', payload.file);
+      formData.append('productionLineId', String(payload.productionLineId));
+
+      const response = await api.post('/products/import-kml', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['products'] });
     },
   });
 
@@ -261,6 +281,17 @@ export default function Products() {
               Kaart
             </button>
           </div>
+
+          <button
+            style={{ background: '#0d6efd', display: canEdit ? undefined : 'none' }}
+            onClick={() => {
+              setImportingKml(true);
+              setImportFile(null);
+              importKmlMutation.reset();
+            }}
+          >
+            KML Importeren
+          </button>
 
           <button
             style={{ background: 'var(--color-success)', display: canEdit ? undefined : 'none' }}
@@ -963,6 +994,118 @@ export default function Products() {
             {createProductMutation.isError && (
               <div style={{ marginTop: '0.75rem', padding: '0.5rem', backgroundColor: '#f8d7da', color: '#721c24', borderRadius: '4px', fontSize: '0.85rem' }}>
                 Fout bij aanmaken: {(createProductMutation.error as any)?.response?.data?.error || 'Onbekende fout'}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* KML Import Modal */}
+      {importingKml && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 3000,
+          }}
+          onClick={(e) => { if (e.target === e.currentTarget) setImportingKml(false); }}
+        >
+          <div
+            style={{
+              backgroundColor: 'white',
+              borderRadius: '8px',
+              padding: '1.5rem',
+              width: '560px',
+              maxWidth: '92vw',
+              maxHeight: '90vh',
+              overflow: 'auto',
+              boxShadow: '0 16px 40px rgba(0,0,0,0.25)',
+            }}
+          >
+            <h2 style={{ margin: '0 0 0.75rem 0', fontSize: '1.2rem' }}>
+              Producten importeren uit KML
+            </h2>
+            <p style={{ marginTop: 0, marginBottom: '1rem', color: '#6c757d', fontSize: '0.9rem' }}>
+              Upload een KML-bestand (bijv. ENC_U3.kml). Bestaande producten met dezelfde code worden bijgewerkt, nieuwe producten worden toegevoegd.
+            </p>
+
+            <div style={{ marginBottom: '1rem', padding: '0.75rem', backgroundColor: '#f8f9fa', borderRadius: '6px', border: '1px solid #dee2e6' }}>
+              <div style={{ fontSize: '0.85rem', color: '#495057' }}>
+                Productielijn ID: <strong>{currentProductionLineId || '-'}</strong>
+              </div>
+            </div>
+
+            <div style={{ marginBottom: '1rem' }}>
+              <label style={{ display: 'block', fontWeight: 600, marginBottom: '0.4rem', fontSize: '0.9rem' }}>
+                KML-bestand
+              </label>
+              <input
+                type="file"
+                accept=".kml,application/vnd.google-earth.kml+xml,application/xml,text/xml"
+                onChange={(e) => {
+                  const file = e.target.files && e.target.files.length > 0 ? e.target.files[0] : null;
+                  setImportFile(file);
+                }}
+                style={{ width: '100%' }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+              <button
+                onClick={() => setImportingKml(false)}
+                style={{
+                  padding: '0.5rem 1rem',
+                  background: '#6c757d',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                }}
+              >
+                Sluiten
+              </button>
+              <button
+                onClick={() => {
+                  if (!importFile || !currentProductionLineId) {
+                    return;
+                  }
+                  importKmlMutation.mutate({
+                    file: importFile,
+                    productionLineId: currentProductionLineId,
+                  });
+                }}
+                disabled={!importFile || !currentProductionLineId || importKmlMutation.isPending}
+                style={{
+                  padding: '0.5rem 1rem',
+                  background: !importFile || !currentProductionLineId || importKmlMutation.isPending ? '#6c757d' : '#0d6efd',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: !importFile || !currentProductionLineId || importKmlMutation.isPending ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {importKmlMutation.isPending ? 'Importeren...' : 'Import starten'}
+              </button>
+            </div>
+
+            {importKmlMutation.isSuccess && importKmlMutation.data?.summary && (
+              <div style={{ marginTop: '1rem', padding: '0.75rem', backgroundColor: '#d4edda', color: '#155724', borderRadius: '4px', fontSize: '0.9rem' }}>
+                <div><strong>Import voltooid</strong></div>
+                <div>Bestand: {importKmlMutation.data.fileName}</div>
+                <div>Features: {importKmlMutation.data.summary.totalFeatures}</div>
+                <div>Toegevoegd: {importKmlMutation.data.summary.inserted}</div>
+                <div>Bijgewerkt: {importKmlMutation.data.summary.updated}</div>
+                <div>Overgeslagen: {importKmlMutation.data.summary.skipped}</div>
+              </div>
+            )}
+
+            {importKmlMutation.isError && (
+              <div style={{ marginTop: '1rem', padding: '0.75rem', backgroundColor: '#f8d7da', color: '#721c24', borderRadius: '4px', fontSize: '0.9rem' }}>
+                Fout bij import: {(importKmlMutation.error as any)?.response?.data?.error || 'Onbekende fout'}
               </div>
             )}
           </div>
