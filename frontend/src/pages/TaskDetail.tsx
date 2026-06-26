@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import api from '../services/api';
@@ -213,6 +213,13 @@ export default function TaskDetail() {
   const queryClient = useQueryClient();
   const currentProductionLineId = useAuthStore((state) => state.currentProductionLineId);
   const currentUserId = useAuthStore((state) => state.user?.id);
+  const previousProductionLineIdRef = useRef<number | null | undefined>(currentProductionLineId);
+  const taskQueryKey = ['task', id, currentProductionLineId];
+  const taskCommentsQueryKey = ['taskComments', id, currentProductionLineId];
+  const taskInfoRequestsQueryKey = ['taskInfoRequests', id, currentProductionLineId];
+  const taskProductionLineStatusesQueryKey = ['taskProductionLineStatuses', id, currentProductionLineId];
+  const taskHpdProjectsQueryKey = ['taskHpdProjects', id, currentProductionLineId];
+  const taskArticlesQueryKey = ['taskArticles', id, currentProductionLineId];
   
   const [workflowContent, setWorkflowContent] = useState('');
   const [editingCommentId, setEditingCommentId] = useState<number | null>(null);
@@ -245,7 +252,7 @@ export default function TaskDetail() {
   const [articleIsTemporary, setArticleIsTemporary] = useState(false);
   const [editingArticleId, setEditingArticleId] = useState<number | null>(null);
   const [isTranslating, setIsTranslating] = useState(false);
-  const [articlesCollapsed, setArticlesCollapsed] = useState(true);
+  const [articlesCollapsed, setArticlesCollapsed] = useState(false);
   const [expandedArticleId, setExpandedArticleId] = useState<number | null>(null);
   const [previewArticle, setPreviewArticle] = useState<any>(null);
   const [showWmsLayersOnMap, setShowWmsLayersOnMap] = useState(true);
@@ -308,8 +315,28 @@ export default function TaskDetail() {
     setIsResizing(false);
   }, [isRightPaneCollapsed]);
 
+  useEffect(() => {
+    if (previousProductionLineIdRef.current === currentProductionLineId) {
+      return;
+    }
+
+    previousProductionLineIdRef.current = currentProductionLineId;
+
+    if (!id || !currentProductionLineId) {
+      return;
+    }
+
+    queryClient.invalidateQueries({ queryKey: taskQueryKey });
+    queryClient.invalidateQueries({ queryKey: ['taskWorkflow', id, currentProductionLineId] });
+    queryClient.invalidateQueries({ queryKey: taskProductionLineStatusesQueryKey });
+    queryClient.invalidateQueries({ queryKey: taskHpdProjectsQueryKey });
+    queryClient.invalidateQueries({ queryKey: taskArticlesQueryKey });
+    queryClient.invalidateQueries({ queryKey: taskCommentsQueryKey });
+    queryClient.invalidateQueries({ queryKey: taskInfoRequestsQueryKey });
+  }, [currentProductionLineId, id, queryClient]);
+
   const { data: task, isLoading, error } = useQuery({
-    queryKey: ['task', id],
+    queryKey: taskQueryKey,
     queryFn: async () => {
       const response = await api.get(`/tasks/${id}`);
       return response.data;
@@ -317,7 +344,7 @@ export default function TaskDetail() {
   });
 
   const { data: comments } = useQuery({
-    queryKey: ['taskComments', id],
+    queryKey: taskCommentsQueryKey,
     queryFn: async () => {
       const response = await api.get(`/tasks/${id}/comments`);
       return response.data;
@@ -326,7 +353,7 @@ export default function TaskDetail() {
   });
 
   const { data: infoRequests } = useQuery({
-    queryKey: ['taskInfoRequests', id],
+    queryKey: taskInfoRequestsQueryKey,
     queryFn: async () => {
       const response = await api.get(`/tasks/${id}/info-requests`);
       return response.data;
@@ -353,8 +380,12 @@ export default function TaskDetail() {
     },
   });
 
+  const currentProductionLineCode = productionLines?.find(
+    (pl: any) => pl.id === currentProductionLineId
+  )?.code;
+
   const { data: productionLineStatuses } = useQuery({
-    queryKey: ['taskProductionLineStatuses', id],
+    queryKey: taskProductionLineStatusesQueryKey,
     queryFn: async () => {
       const response = await api.get(`/tasks/${id}/production-line-status`);
       return response.data;
@@ -363,7 +394,7 @@ export default function TaskDetail() {
   });
 
   const { data: hpdProjects } = useQuery({
-    queryKey: ['taskHpdProjects', id],
+    queryKey: taskHpdProjectsQueryKey,
     queryFn: async () => {
       const response = await api.get(`/tasks/${id}/hpd-projects`);
       return response.data;
@@ -413,11 +444,11 @@ export default function TaskDetail() {
   });
 
   // BaZ-2 Articles query - only for PUBL production line
-  const isPUBL = task?.production_line_code === 'PUBL';
+  const isPUBL = currentProductionLineCode === 'PUBL';
   const isZK = currentProductionLineId === 1;
 
   const { data: articles } = useQuery({
-    queryKey: ['taskArticles', id],
+    queryKey: taskArticlesQueryKey,
     queryFn: async () => {
       const response = await api.get(`/tasks/${id}/articles`);
       return response.data;
@@ -444,8 +475,6 @@ export default function TaskDetail() {
   }, [task?.production_line_id, currentProductionLineId]);
 
   useEffect(() => {
-    if (selectedProductLineId) return;
-
     if (currentProductionLineId) {
       setSelectedProductLineId(currentProductionLineId);
       return;
@@ -454,7 +483,13 @@ export default function TaskDetail() {
     if (productionLines && productionLines.length > 0) {
       setSelectedProductLineId(productionLines[0].id);
     }
-  }, [selectedProductLineId, currentProductionLineId, productionLines]);
+  }, [currentProductionLineId, productionLines]);
+
+  useEffect(() => {
+    if (isPUBL) {
+      setArticlesCollapsed(false);
+    }
+  }, [isPUBL]);
 
   // Edit comment mutation
   const editCommentMutation = useMutation({
