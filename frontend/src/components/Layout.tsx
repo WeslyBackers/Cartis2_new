@@ -1,8 +1,6 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
-import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
-import api from '../services/api';
 import './Layout.css';
 
 type ThemeMode = 'light' | 'dark';
@@ -28,13 +26,8 @@ export default function Layout() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
   const [theme, setTheme] = useState<ThemeMode>(() => getInitialTheme());
 
-  const { data: productionLines } = useQuery({
-    queryKey: ['productionLines'],
-    queryFn: async () => {
-      const response = await api.get('/production-lines');
-      return response.data;
-    },
-  });
+  // Use the production lines the user has rights to (already available from login)
+  const productionLines = user?.rights ?? [];
 
   const handleLogout = () => {
     logout();

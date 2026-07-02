@@ -1,37 +1,17 @@
 {
   "version": 2,
-  "buildCommand": "npm run build",
-  "devCommand": "npm run dev",
-  "installCommand": "npm install",
-  "builds": [
-    {
-      "src": "backend/package.json",
-      "use": "@vercel/node",
-      "config": {
-        "maxLambdaSize": "50mb",
-        "runtime": "nodejs20.x"
-      }
-    },
-    {
-      "src": "frontend/vite.config.ts",
-      "use": "@vercel/static-build",
-      "config": {
-        "distDir": "frontend/dist"
-      }
+  "buildCommand": "npm run build:frontend && npm run build:backend",
+  "outputDirectory": "frontend/dist",
+  "installCommand": "npm run install:all",
+  "functions": {
+    "api/index.ts": {
+      "maxDuration": 30,
+      "memory": 512
     }
-  ],
-  "routes": [
-    {
-      "src": "/api/(.*)",
-      "dest": "backend/dist/index.js"
-    },
-    {
-      "src": "/uploads/(.*)",
-      "dest": "backend/dist/index.js"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "frontend/dist/index.html"
-    }
+  },
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/index.ts" },
+    { "source": "/uploads/(.*)", "destination": "/api/index.ts" },
+    { "source": "/((?!api|uploads).*)", "destination": "/index.html" }
   ]
 }

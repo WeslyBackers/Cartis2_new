@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@google-cloud/translate": "^9.3.0",
+    "@supabase/supabase-js": "^2.110.0",
     "@tmcw/togeojson": "^7.1.2",
     "@xmldom/xmldom": "^0.9.10",
     "axios": "^1.6.2",
