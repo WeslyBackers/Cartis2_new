@@ -30,7 +30,9 @@ const pool = new Pool({
       }
   ),
   ssl: sslEnabled ? { rejectUnauthorized: false } : undefined,
-  max: 20,
+  // Vercel serverless functions are short-lived; keep the pool small to avoid
+  // exhausting Supabase's connection limit across concurrent invocations.
+  max: process.env.VERCEL ? 2 : 20,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 30000,
 });

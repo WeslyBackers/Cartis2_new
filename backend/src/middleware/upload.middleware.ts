@@ -2,8 +2,11 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 
-// Ensure uploads directory exists
-const uploadDir = path.join(__dirname, '../../uploads');
+// On Vercel only /tmp is writable; use it there, fall back to the local uploads folder.
+const uploadDir = process.env.VERCEL
+  ? '/tmp/cartis-uploads'
+  : path.join(__dirname, '../../uploads');
+
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
