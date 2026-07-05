@@ -2,7 +2,7 @@
   "version": 2,
   "buildCommand": "npm run build:frontend",
   "outputDirectory": "frontend/dist",
-  "installCommand": "npm run install:all",
+  "installCommand": "npm install",
   "functions": {
     "api/index.ts": {
       "maxDuration": 30,
