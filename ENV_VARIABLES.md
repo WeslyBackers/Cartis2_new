@@ -23,9 +23,15 @@ JWT_SECRET       = (random 64-char hex string)
                    Generate: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```
 
-### Google Cloud Translate
+### Supabase (required for auth routes)
 ```
-GOOGLE_APPLICATION_CREDENTIALS = (full JSON from service account)
+SUPABASE_URL         = https://your-project-ref.supabase.co
+SUPABASE_SECRET_KEY  = (service role key from Supabase dashboard)
+```
+
+### Google Translate
+```
+GOOGLE_TRANSLATE_API_KEY = (API key from Google Cloud Console)
 ```
 
 ---
@@ -75,25 +81,14 @@ Copy the output and paste as `JWT_SECRET` in Vercel.
 
 ---
 
-### GOOGLE_APPLICATION_CREDENTIALS
+### GOOGLE_TRANSLATE_API_KEY
 
-**If you already have a service account key**:
-1. Download JSON file from Google Cloud Console
-2. Open in text editor
-3. Copy entire JSON content
-4. In Vercel dashboard, paste into `GOOGLE_APPLICATION_CREDENTIALS` field
-
-**If you need to create a service account**:
 1. Go to https://console.cloud.google.com
-2. Project dropdown → Select or create a project
-3. Left sidebar → "Service Accounts"
-4. Click "Create Service Account"
-5. Fill name: `cartis-translate`
-6. Click "Create and Continue"
-7. Grant role: "Editor" (or "Translation API Admin")
-8. Click "Continue"
-9. Click "Create Key" → "JSON"
-10. Save file, then copy its content to `GOOGLE_APPLICATION_CREDENTIALS`
+2. Enable the **Cloud Translation API** for your project
+3. Navigate to "APIs & Services" → "Credentials"
+4. Click "Create Credentials" → "API key"
+5. Restrict the key to the Cloud Translation API
+6. Copy the key and add it as `GOOGLE_TRANSLATE_API_KEY` in Vercel
 
 ---
 
@@ -125,8 +120,9 @@ vercel env add DB_USER
 vercel env add DB_PASSWORD
 vercel env add JWT_SECRET
 vercel env add NODE_ENV
-vercel env add PORT
-vercel env add GOOGLE_APPLICATION_CREDENTIALS
+vercel env add SUPABASE_URL
+vercel env add SUPABASE_SECRET_KEY
+vercel env add GOOGLE_TRANSLATE_API_KEY
 
 # Redeploy to apply new env vars
 vercel --prod
@@ -171,10 +167,11 @@ DB_PORT=5432
 DB_NAME=postgres
 DB_USER=postgres
 DB_PASSWORD=(your supabase password)
-PORT=3000
 NODE_ENV=production
 JWT_SECRET=(random 64-char hex)
-GOOGLE_APPLICATION_CREDENTIALS=(full JSON)
+SUPABASE_URL=https://your-project-ref.supabase.co
+SUPABASE_SECRET_KEY=(service role key from Supabase dashboard)
+GOOGLE_TRANSLATE_API_KEY=(API key from Google Cloud Console)
 ```
 
 ---

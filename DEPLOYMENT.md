@@ -90,7 +90,9 @@
    PORT             = 3000
    NODE_ENV         = production
    JWT_SECRET       = your-random-secret-key
-   GOOGLE_APPLICATION_CREDENTIALS = your-google-cloud-key-json
+   SUPABASE_URL     = https://your-project-ref.supabase.co
+   SUPABASE_SECRET_KEY = your-service-role-key
+   GOOGLE_TRANSLATE_API_KEY = your-google-translate-api-key
    ```
 
 ---

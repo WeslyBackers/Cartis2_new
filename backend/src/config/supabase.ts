@@ -1,14 +1,7 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
 
 dotenv.config();
-
-const supabaseUrl = process.env.SUPABASE_URL!;
-const supabaseKey = process.env.SUPABASE_SECRET_KEY!;
-
-if (!supabaseUrl || !supabaseKey) {
-  throw new Error('SUPABASE_URL and SUPABASE_SECRET_KEY must be set in environment');
-}
 
 // Corporate networks often use SSL inspection proxies that present their own
 // certificate, causing SELF_SIGNED_CERT_IN_CHAIN errors.
@@ -24,14 +17,40 @@ try {
   // undici unavailable — fall back to default fetch
 }
 
-// Admin client using the secret key — bypasses RLS, for server-side use only
-const supabase = createClient(supabaseUrl, supabaseKey, {
-  auth: {
-    autoRefreshToken: false,
-    persistSession: false,
-  },
-  global: {
-    fetch: customFetch,
+// Lazy singleton — created on first use so missing env vars don't crash startup
+// for routes that don't need Supabase (e.g. non-auth routes).
+let _supabase: SupabaseClient | null = null;
+
+function getSupabaseClient(): SupabaseClient {
+  if (_supabase) return _supabase;
+
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_SECRET_KEY;
+
+  if (!supabaseUrl || !supabaseKey) {
+    throw new Error('SUPABASE_URL and SUPABASE_SECRET_KEY must be set in environment');
+  }
+
+  // Admin client using the secret key — bypasses RLS, for server-side use only
+  _supabase = createClient(supabaseUrl, supabaseKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+    global: {
+      fetch: customFetch,
+    },
+  });
+
+  return _supabase;
+}
+
+// Export a Proxy so existing callers can use `supabase.from(...)` etc. unchanged.
+const supabase = new Proxy({} as SupabaseClient, {
+  get(_target, prop) {
+    const client = getSupabaseClient();
+    const value = (client as any)[prop];
+    return typeof value === 'function' ? value.bind(client) : value;
   },
 });
 
