@@ -1,10 +1,6 @@
 {
   "version": 2,
-<<<<<<< HEAD
   "buildCommand": "npm run build --prefix frontend && npm run build --prefix backend",
-=======
-  "buildCommand": "npm run build:frontend",
->>>>>>> 86f633a1de724a309566dfdb84ce9540106b76a7
   "outputDirectory": "frontend/dist",
   "installCommand": "npm install",
   "functions": {
