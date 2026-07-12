@@ -16,6 +16,7 @@ import productionLineRoutes from './routes/productionLine.routes';
 import userRoutes from './routes/user.routes';
 import coverageRoutes from './routes/coverage.routes';
 import noteRoutes from './routes/note.routes';
+import pool from './config/database';
 
 dotenv.config();
 
@@ -49,6 +50,29 @@ app.use('/api/production-lines', productionLineRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/coverages', coverageRoutes);
 app.use('/api/notes', noteRoutes);
+
+// Temporary: test PostGIS and product detection
+app.get('/api/test-postgis', async (_req: Request, res: Response) => {
+  const results: any = {};
+  try {
+    const ext = await pool.query("SELECT extname, extversion FROM pg_extension WHERE extname = 'postgis'");
+    results.postgis = ext.rows[0] || 'NOT INSTALLED';
+  } catch (e: any) { results.postgis_error = e.message; }
+  try {
+    const pt = await pool.query("SELECT ST_AsText(ST_GeomFromGeoJSON('{\"type\":\"Point\",\"coordinates\":[4.0,51.0]}')) as result");
+    results.st_geomfromgeojson = pt.rows[0]?.result;
+  } catch (e: any) { results.st_geomfromgeojson_error = e.message; }
+  try {
+    const pc = await pool.query('SELECT COUNT(*) as total FROM products WHERE is_active = true AND geometry IS NOT NULL');
+    results.products_with_geometry = pc.rows[0]?.total;
+  } catch (e: any) { results.products_count_error = e.message; }
+  try {
+    // Test actual intersection with a sample product
+    const sample = await pool.query("SELECT id, code, ST_Force2D(ST_GeomFromGeoJSON(geometry::text)) as geom FROM products WHERE is_active = true AND geometry IS NOT NULL LIMIT 1");
+    results.sample_product = sample.rows[0] ? { id: sample.rows[0].id, code: sample.rows[0].code, geom_ok: !!sample.rows[0].geom } : 'none';
+  } catch (e: any) { results.sample_product_error = e.message; }
+  res.json(results);
+});
 
 // Serve frontend static files in production (Replit, etc.)
 if (process.env.NODE_ENV === 'production') {
