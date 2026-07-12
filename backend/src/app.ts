@@ -16,6 +16,7 @@ import productionLineRoutes from './routes/productionLine.routes';
 import userRoutes from './routes/user.routes';
 import coverageRoutes from './routes/coverage.routes';
 import noteRoutes from './routes/note.routes';
+import pool from './config/database';
 
 dotenv.config();
 
@@ -49,6 +50,15 @@ app.use('/api/production-lines', productionLineRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/coverages', coverageRoutes);
 app.use('/api/notes', noteRoutes);
+
+app.get('/api/db-ping', async (_req: Request, res: Response) => {
+  try {
+    const r = await pool.query("SELECT current_user, current_database()");
+    res.json({ ok: true, user: r.rows[0].current_user, db: r.rows[0].current_database });
+  } catch (err: any) {
+    res.status(500).json({ ok: false, error: err.message, code: err.code });
+  }
+});
 
 // Serve frontend static files in production (Replit, etc.)
 if (process.env.NODE_ENV === 'production') {
