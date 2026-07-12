@@ -600,6 +600,10 @@ export default function NotificationDetail() {
   const zoneHitOnLastMapClickRef = useRef(false);
   const basisinformatieRef = useRef<HTMLDivElement | null>(null);
 
+  // Manual zone linking states
+  const [showAddZonePanel, setShowAddZonePanel] = useState(false);
+  const [zoneSearchQuery, setZoneSearchQuery] = useState('');
+
   useEffect(() => {
     document.body.style.overflow = isMapExpanded ? 'hidden' : '';
 
@@ -888,6 +892,23 @@ export default function NotificationDetail() {
     onError: (error: any) => {
       console.error('Error removing zone:', error);
       alert(`Fout bij verwijderen zone: ${getApiErrorMessage(error, 'onbekende fout')}`);
+    },
+  });
+
+  // Detect zones mutation
+  const detectZonesMutation = useMutation({
+    mutationFn: async () => {
+      const response = await api.post(`/notifications/${id}/detect-zones`);
+      return response.data;
+    },
+    onSuccess: async (data) => {
+      await queryClient.invalidateQueries({ queryKey: ['notification', id] });
+      await queryClient.refetchQueries({ queryKey: ['notification', id] });
+      alert(`Zone detectie voltooid: ${data.zones?.length || 0} zone(s) gekoppeld.`);
+    },
+    onError: (error: any) => {
+      console.error('Error detecting zones:', error);
+      alert(`Fout bij herberekenen zones: ${getApiErrorMessage(error, 'onbekende fout')}`);
     },
   });
 
@@ -1208,27 +1229,161 @@ export default function NotificationDetail() {
               </div>
 
               <div>
-                <label style={{ fontWeight: 'bold', color: '#6c757d', display: 'block', marginBottom: '0.5rem' }}>Actieve Zone(s)</label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
+                  <label style={{ fontWeight: 'bold', color: '#6c757d', display: 'block' }}>Actieve Zone(s)</label>
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <button
+                      onClick={() => detectZonesMutation.mutate()}
+                      disabled={detectZonesMutation.isPending || !geometry}
+                      style={{
+                        padding: '0.4rem 0.8rem',
+                        backgroundColor: '#17a2b8',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: (detectZonesMutation.isPending || !geometry) ? 'not-allowed' : 'pointer',
+                        fontSize: '0.8rem',
+                        fontWeight: '600',
+                        opacity: (detectZonesMutation.isPending || !geometry) ? 0.7 : 1,
+                      }}
+                      title={!geometry ? "Geen geometrie beschikbaar voor zone detectie" : "Zones herberekenen op basis van coördinaten"}
+                    >
+                      {detectZonesMutation.isPending ? '⟳ Bezig...' : '⟳ Herbereken zones'}
+                    </button>
+                    <button
+                      onClick={() => setShowAddZonePanel(!showAddZonePanel)}
+                      style={{
+                        padding: '0.4rem 0.8rem',
+                        backgroundColor: showAddZonePanel ? '#6c757d' : '#28a745',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        fontSize: '0.8rem',
+                        fontWeight: '600',
+                      }}
+                    >
+                      {showAddZonePanel ? '✕ Sluiten' : '+ Zone toevoegen'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Add zone panel */}
+                {showAddZonePanel && (
+                  <div style={{ marginBottom: '1rem', padding: '1rem', backgroundColor: '#f0f7ff', borderRadius: '6px', border: '1px solid #b8daff' }}>
+                    <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '0.5rem', color: '#004085' }}>
+                      Zoek een zone om toe te voegen
+                    </label>
+                    <input
+                      type="text"
+                      value={zoneSearchQuery}
+                      onChange={(e) => setZoneSearchQuery(e.target.value)}
+                      placeholder="Zoek op code of naam..."
+                      style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #ced4da', marginBottom: '0.5rem' }}
+                    />
+                    <div style={{ maxHeight: '250px', overflowY: 'auto', border: '1px solid #dee2e6', borderRadius: '4px', backgroundColor: 'white' }}>
+                      {(() => {
+                        const linkedZoneIds = new Set(activeZoneCoverageIds);
+                        const filtered = (availableZones || []).filter((z: any) => {
+                          if (linkedZoneIds.has(Number(z.id))) return false;
+                          if (!zoneSearchQuery) return true;
+                          const q = zoneSearchQuery.toLowerCase();
+                          return (z.code?.toLowerCase().includes(q) || z.name?.toLowerCase().includes(q));
+                        });
+
+                        if (!availableZones) {
+                          return <div style={{ padding: '1rem', color: '#6c757d', textAlign: 'center' }}>Laden...</div>;
+                        }
+                        if (filtered.length === 0) {
+                          return <div style={{ padding: '1rem', color: '#6c757d', textAlign: 'center' }}>Geen zones gevonden</div>;
+                        }
+                        return filtered.map((z: any) => (
+                          <div
+                            key={z.id}
+                            style={{
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              padding: '0.5rem 0.75rem',
+                              borderBottom: '1px solid #f1f3f5',
+                              cursor: 'pointer',
+                              transition: 'background 0.15s',
+                            }}
+                            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#e9ecef'; }}
+                            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'white'; }}
+                          >
+                            <span style={{ fontSize: '0.9rem' }}>
+                              <strong>{z.code}</strong> - {z.name}
+                            </span>
+                            <button
+                              onClick={() => {
+                                addZoneMutation.mutate(Number(z.id));
+                                setZoneSearchQuery('');
+                              }}
+                              disabled={addZoneMutation.isPending}
+                              style={{
+                                padding: '0.25rem 0.75rem',
+                                backgroundColor: '#28a745',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '4px',
+                                cursor: 'pointer',
+                                fontSize: '0.8rem',
+                                fontWeight: '600',
+                                flexShrink: 0,
+                              }}
+                            >
+                              + Toevoegen
+                            </button>
+                          </div>
+                        ));
+                      })()}
+                    </div>
+                  </div>
+                )}
+
+                {/* Linked zones list */}
                 {activeZonesForDisplay.length > 0 ? (
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
                     {activeZonesForDisplay.map((zone: any) => (
                       <span
                         key={zone.id}
                         style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.5rem',
                           padding: '0.35rem 0.7rem',
                           borderRadius: '14px',
                           fontSize: '0.8rem',
                           border: `1px solid ${zone.detection_method === 'manual' ? '#ffb74d' : '#90caf9'}`,
                           color: zone.detection_method === 'manual' ? '#f57c00' : '#1976d2',
                           backgroundColor: zone.detection_method === 'manual' ? '#fff3e0' : '#e3f2fd',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '0.35rem',
                         }}
                         title={`${zone.zone_code}${zone.detection_method === 'manual' ? ' (handmatig toegevoegd)' : ' (automatisch gedetecteerd)'}`}
                       >
                         <strong>{zone.zone_name || zone.zone_code}</strong>
                         {zone.detection_method === 'manual' && <span style={{ fontSize: '0.7rem' }}>✎</span>}
+                        <button
+                          onClick={() => {
+                            if (window.confirm(`Weet u zeker dat u zone '${zone.zone_name || zone.zone_code}' wilt ontkoppelen?`)) {
+                              removeZoneMutation.mutate(Number(zone.kml_coverage_id));
+                            }
+                          }}
+                          disabled={removeZoneMutation.isPending}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: zone.detection_method === 'manual' ? '#f57c00' : '#1976d2',
+                            cursor: 'pointer',
+                            fontSize: '1rem',
+                            padding: '0 0.25rem',
+                            lineHeight: 1,
+                            fontWeight: 'bold',
+                          }}
+                          title="Ontkoppel zone"
+                        >
+                          ✕
+                        </button>
                       </span>
                     ))}
                   </div>
