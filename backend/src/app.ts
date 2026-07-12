@@ -51,27 +51,59 @@ app.use('/api/users', userRoutes);
 app.use('/api/coverages', coverageRoutes);
 app.use('/api/notes', noteRoutes);
 
-// Temporary: test PostGIS and product detection
-app.get('/api/test-postgis', async (_req: Request, res: Response) => {
-  const results: any = {};
+// Temporary: test PostGIS and product detection with real notification
+app.get('/api/test-detection/:notifId', async (req: Request, res: Response) => {
+  const { notifId } = req.params;
+  const out: any = { notifId };
   try {
-    const ext = await pool.query("SELECT extname, extversion FROM pg_extension WHERE extname = 'postgis'");
-    results.postgis = ext.rows[0] || 'NOT INSTALLED';
-  } catch (e: any) { results.postgis_error = e.message; }
-  try {
-    const pt = await pool.query("SELECT ST_AsText(ST_GeomFromGeoJSON('{\"type\":\"Point\",\"coordinates\":[4.0,51.0]}')) as result");
-    results.st_geomfromgeojson = pt.rows[0]?.result;
-  } catch (e: any) { results.st_geomfromgeojson_error = e.message; }
-  try {
-    const pc = await pool.query('SELECT COUNT(*) as total FROM products WHERE is_active = true AND geometry IS NOT NULL');
-    results.products_with_geometry = pc.rows[0]?.total;
-  } catch (e: any) { results.products_count_error = e.message; }
-  try {
-    // Test actual intersection with a sample product
-    const sample = await pool.query("SELECT id, code, ST_Force2D(ST_GeomFromGeoJSON(geometry::text)) as geom FROM products WHERE is_active = true AND geometry IS NOT NULL LIMIT 1");
-    results.sample_product = sample.rows[0] ? { id: sample.rows[0].id, code: sample.rows[0].code, geom_ok: !!sample.rows[0].geom } : 'none';
-  } catch (e: any) { results.sample_product_error = e.message; }
-  res.json(results);
+    // Get notification geometry
+    const nr = await pool.query('SELECT id, code, geometry FROM notifications WHERE id = $1', [notifId]);
+    const notif = nr.rows[0];
+    out.notification = { id: notif?.id, code: notif?.code, has_geometry: !!notif?.geometry };
+    if (!notif?.geometry) { res.json(out); return; }
+
+    // Parse geometry
+    const geomObj = typeof notif.geometry === 'string' ? JSON.parse(notif.geometry) : notif.geometry;
+    out.geom_type = geomObj.type;
+
+    // Extract individual geometries (same logic as detection function)
+    function extractGeoms(g: any): any[] {
+      if (!g) return [];
+      if (g.type === 'FeatureCollection') return (g.features || []).flatMap((f: any) => extractGeoms(f?.geometry));
+      if (g.type === 'Feature') return extractGeoms(g.geometry);
+      if (g.type === 'GeometryCollection') return (g.geometries || []).flatMap((geo: any) => extractGeoms(geo));
+      if (g.type && g.coordinates) return [g];
+      return [];
+    }
+    function removeZ(g: any): any {
+      if (!g || !g.coordinates) return g;
+      const clean = (c: any): any => typeof c[0] === 'number' ? [c[0], c[1]] : c.map(clean);
+      return { ...g, coordinates: clean(g.coordinates) };
+    }
+    const cleaned = removeZ(geomObj);
+    const geoms = extractGeoms(cleaned);
+    out.extracted_geometries = geoms.length;
+
+    if (geoms.length === 0) { res.json(out); return; }
+
+    // Get production lines
+    const plr = await pool.query('SELECT id, code FROM production_lines WHERE is_active = true ORDER BY id');
+    out.production_lines = plr.rows.map((pl: any) => pl.code);
+
+    // Test intersection for first geometry and first production line
+    const testGeom = JSON.stringify(removeZ(geoms[0]));
+    out.test_geom = testGeom.substring(0, 100);
+    const pl = plr.rows[0];
+    out.testing_pl = pl?.code;
+    const ir = await pool.query(
+      `WITH cp AS (SELECT p.id, p.code, ST_Force2D(ST_GeomFromGeoJSON(p.geometry::text)) as geom FROM products p WHERE p.production_line_id = $1 AND p.is_active = true AND p.geometry IS NOT NULL)
+       SELECT id, code FROM cp WHERE ST_Intersects(geom, ST_Force2D(ST_GeomFromGeoJSON($2)))`,
+      [pl.id, testGeom]
+    );
+    out.intersecting_products = ir.rows.map((r: any) => r.code);
+
+  } catch (e: any) { out.error = e.message; }
+  res.json(out);
 });
 
 // Serve frontend static files in production (Replit, etc.)
