@@ -1597,7 +1597,7 @@ export default function NotificationDetail() {
                             });
                             
                             // Create blob URL and trigger download/view
-                            const blob = new Blob([response.data], { type: response.headers['content-type'] });
+                            const blob = new Blob([response.data], { type: response.headers['content-type'] as string | undefined });
                             const url = window.URL.createObjectURL(blob);
                             const link = document.createElement('a');
                             link.href = url;
