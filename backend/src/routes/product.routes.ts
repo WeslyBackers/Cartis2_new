@@ -149,7 +149,7 @@ router.get('/', authenticate, async (req, res) => {
   try {
     const { productionLineId, type, isActive } = req.query;
 
-    let query = 'SELECT * FROM products WHERE 1=1';
+    let query = 'SELECT * FROM products WHERE 1=1 AND (type IS NULL OR type != \'zone\')';
     const params: any[] = [];
     let paramCount = 0;
 
@@ -190,7 +190,7 @@ router.get('/:id', authenticate, async (req, res) => {
       `SELECT p.*, pl.code as production_line_code, pl.name as production_line_name
        FROM products p
        LEFT JOIN production_lines pl ON p.production_line_id = pl.id
-       WHERE p.id = $1`,
+       WHERE p.id = $1 AND (p.type IS NULL OR p.type != 'zone')`,
       [id]
     );
 
@@ -554,6 +554,7 @@ router.get('/for-notification/:notificationId', authenticate, async (req, res) =
       WHERE p.production_line_id = $2
         AND p.is_active = true
         AND p.geometry IS NOT NULL
+        AND (p.type IS NULL OR p.type != 'zone')
         AND EXISTS (
           SELECT 1
           FROM unnest($3::text[]) AS ng(geom)
@@ -635,6 +636,7 @@ router.get('/notification/:notificationId', authenticate, async (req, res) => {
       JOIN notifications_products np ON p.id = np.product_id
       JOIN production_lines pl ON p.production_line_id = pl.id
       WHERE np.notification_id = $1
+        AND (p.type IS NULL OR p.type != 'zone')
     `;
     
     const params: any[] = [notificationId];

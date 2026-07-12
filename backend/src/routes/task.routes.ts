@@ -584,7 +584,7 @@ router.post('/:taskId/products', authenticate, async (req: AuthRequest, res) => 
     const productResult = await pool.query(
       `SELECT id, production_line_id, is_active
        FROM products
-       WHERE id = $1`,
+       WHERE id = $1 AND (type IS NULL OR type != 'zone')`,
       [productId]
     );
 

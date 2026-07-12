@@ -207,7 +207,7 @@ async function detectAndLinkProductsForNotification(notificationId: number): Pro
         // First, check how many products with geometry exist for this production line
         const totalProductsResult = await pool.query(
           `SELECT COUNT(*) as count FROM products 
-           WHERE production_line_id = $1 AND is_active = true AND geometry IS NOT NULL`,
+           WHERE production_line_id = $1 AND is_active = true AND geometry IS NOT NULL AND (type IS NULL OR type != 'zone')`,
           [productionLine.id]
         );
         console.log(`[Product Detection]    → ${totalProductsResult.rows[0].count} active products with geometry in this line`);
@@ -249,6 +249,7 @@ async function detectAndLinkProductsForNotification(notificationId: number): Pro
                 WHERE p.production_line_id = $1
                   AND p.is_active = true
                   AND p.geometry IS NOT NULL
+                  AND (p.type IS NULL OR p.type != 'zone')
               )
               SELECT id, code, name
               FROM clean_products
@@ -322,7 +323,7 @@ async function detectAndLinkProductsForNotification(notificationId: number): Pro
       `SELECT np.product_id, p.code, p.name, p.production_line_id, p.geometry
        FROM notifications_products np
        JOIN products p ON p.id = np.product_id
-       WHERE np.notification_id = $1 AND np.is_relevant = true AND p.is_active = true AND p.geometry IS NOT NULL`,
+       WHERE np.notification_id = $1 AND np.is_relevant = true AND p.is_active = true AND p.geometry IS NOT NULL AND (p.type IS NULL OR p.type != 'zone')`,
       [notificationId]
     );
     

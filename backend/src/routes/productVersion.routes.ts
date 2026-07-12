@@ -306,7 +306,7 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
       `SELECT p.code, p.name, pl.code as production_line_code
        FROM products p
        LEFT JOIN production_lines pl ON p.production_line_id = pl.id
-       WHERE p.id = $1`,
+       WHERE p.id = $1 AND (p.type IS NULL OR p.type != 'zone')`,
       [productId]
     );
 
