@@ -16,7 +16,6 @@ import productionLineRoutes from './routes/productionLine.routes';
 import userRoutes from './routes/user.routes';
 import coverageRoutes from './routes/coverage.routes';
 import noteRoutes from './routes/note.routes';
-import pool from './config/database';
 
 dotenv.config();
 
@@ -50,61 +49,6 @@ app.use('/api/production-lines', productionLineRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/coverages', coverageRoutes);
 app.use('/api/notes', noteRoutes);
-
-// Temporary: test PostGIS and product detection with real notification
-app.get('/api/test-detection/:notifId', async (req: Request, res: Response) => {
-  const { notifId } = req.params;
-  const out: any = { notifId };
-  try {
-    // Get notification geometry
-    const nr = await pool.query('SELECT id, code, geometry FROM notifications WHERE id = $1', [notifId]);
-    const notif = nr.rows[0];
-    out.notification = { id: notif?.id, code: notif?.code, has_geometry: !!notif?.geometry };
-    if (!notif?.geometry) { res.json(out); return; }
-
-    // Parse geometry
-    const geomObj = typeof notif.geometry === 'string' ? JSON.parse(notif.geometry) : notif.geometry;
-    out.geom_type = geomObj.type;
-
-    // Extract individual geometries (same logic as detection function)
-    function extractGeoms(g: any): any[] {
-      if (!g) return [];
-      if (g.type === 'FeatureCollection') return (g.features || []).flatMap((f: any) => extractGeoms(f?.geometry));
-      if (g.type === 'Feature') return extractGeoms(g.geometry);
-      if (g.type === 'GeometryCollection') return (g.geometries || []).flatMap((geo: any) => extractGeoms(geo));
-      if (g.type && g.coordinates) return [g];
-      return [];
-    }
-    function removeZ(g: any): any {
-      if (!g || !g.coordinates) return g;
-      const clean = (c: any): any => typeof c[0] === 'number' ? [c[0], c[1]] : c.map(clean);
-      return { ...g, coordinates: clean(g.coordinates) };
-    }
-    const cleaned = removeZ(geomObj);
-    const geoms = extractGeoms(cleaned);
-    out.extracted_geometries = geoms.length;
-
-    if (geoms.length === 0) { res.json(out); return; }
-
-    // Get production lines
-    const plr = await pool.query('SELECT id, code FROM production_lines WHERE is_active = true ORDER BY id');
-    out.production_lines = plr.rows.map((pl: any) => pl.code);
-
-    // Test intersection for first geometry and first production line
-    const testGeom = JSON.stringify(removeZ(geoms[0]));
-    out.test_geom = testGeom.substring(0, 100);
-    const pl = plr.rows[0];
-    out.testing_pl = pl?.code;
-    const ir = await pool.query(
-      `WITH cp AS (SELECT p.id, p.code, ST_Force2D(ST_GeomFromGeoJSON(p.geometry::text)) as geom FROM products p WHERE p.production_line_id = $1 AND p.is_active = true AND p.geometry IS NOT NULL)
-       SELECT id, code FROM cp WHERE ST_Intersects(geom, ST_Force2D(ST_GeomFromGeoJSON($2)))`,
-      [pl.id, testGeom]
-    );
-    out.intersecting_products = ir.rows.map((r: any) => r.code);
-
-  } catch (e: any) { out.error = e.message; }
-  res.json(out);
-});
 
 // Serve frontend static files in production (Replit, etc.)
 if (process.env.NODE_ENV === 'production') {
