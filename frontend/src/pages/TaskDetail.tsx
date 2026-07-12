@@ -425,6 +425,13 @@ export default function TaskDetail() {
     enabled: !!id,
   });
 
+  // Auto-expand article section for PUBL tasks to make editors visible
+  useEffect(() => {
+    if (isPUBL && articlesCollapsed) {
+      setArticlesCollapsed(false);
+    }
+  }, [isPUBL, articlesCollapsed]);
+
   // Load workflow content when it changes
   useEffect(() => {
     if (workflow?.workflow_content) {
