@@ -5,7 +5,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import api from '../services/api';
 import { useTableSort } from '../hooks/useTableSort';
@@ -122,7 +122,6 @@ const isIntegratedCorrectionListCode = (code: string | null | undefined): boolea
 export default function Tasks() {
   const currentProductionLineId = useAuthStore((state) => state.currentProductionLineId);
   const queryClient = useQueryClient();
-  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');

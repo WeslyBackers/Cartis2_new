@@ -1,0 +1,10 @@
+run = "npm run build && npm start"
+language = "nodejs"
+entrypoint = "package.json"
+
+[nix]
+channel = "stable-23_11"
+
+[[ports]]
+localPort = 3000
+externalPort = 80

@@ -1,9 +1,8 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo } from 'react';
 import {
   MapContainer,
   TileLayer,
   GeoJSON,
-  Popup,
   useMap,
 } from 'react-leaflet';
 import L from 'leaflet';
@@ -30,11 +29,10 @@ function FitBounds({ bounds }: { bounds: L.LatLngBounds | null }) {
 
 export function ProductVersionMapOverview({
   selectedVersion,
-  productName = '',
-  productCode = '',
+  productName: _productName = '',
+  productCode: _productCode = '',
   isExpanded = false,
 }: ProductVersionMapOverviewProps) {
-  const [popupKey, setPopupKey] = useState<string | null>(null);
 
   const parseGeom = (geom: any): any => {
     if (!geom) return null;
@@ -308,7 +306,7 @@ export function ProductVersionMapOverview({
       productGeometries: productGeoms,
       noticeGeometries: noticeGeoms,
       linkedNoticeCount: linkedNoticeKeys.size,
-      centerCoordinates: firstCoord || [52.1326, 5.2913], // Default center (Netherlands)
+      centerCoordinates: firstCoord ?? ([52.1326, 5.2913] as [number, number]), // Default center (Netherlands)
       mapBounds,
     };
   }, [selectedVersion]);
@@ -383,7 +381,7 @@ export function ProductVersionMapOverview({
                 fillOpacity: 0.25,
                 dashArray: '5,5',
               })}
-              onEachFeature={(feature, layer) => {
+              onEachFeature={(_feature, layer) => {
                 const popupContent = `
                   <div style="font-size: 0.9rem; line-height: 1.4;">
                     <strong>Melding: ${item.noticeCode}</strong><br/>

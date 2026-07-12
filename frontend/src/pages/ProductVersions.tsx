@@ -434,7 +434,7 @@ export default function ProductVersions() {
         )
       );
 
-      queryClient.setQueryData<any>(['productVersionDetail', selectedVersionId], (old) => {
+      queryClient.setQueryData<any>(['productVersionDetail', selectedVersionId], (old: any) => {
         if (!old || Number(old.id) !== Number(versionId)) return old;
         return { ...old, status };
       });

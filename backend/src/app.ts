@@ -50,7 +50,18 @@ app.use('/api/users', userRoutes);
 app.use('/api/coverages', coverageRoutes);
 app.use('/api/notes', noteRoutes);
 
-// 404 handler
+// Serve frontend static files in production (Replit, etc.)
+if (process.env.NODE_ENV === 'production') {
+  const frontendDist = path.join(__dirname, '../../frontend/dist');
+  if (fs.existsSync(frontendDist)) {
+    app.use(express.static(frontendDist));
+    app.get('*', (_req: Request, res: Response) => {
+      res.sendFile(path.join(frontendDist, 'index.html'));
+    });
+  }
+}
+
+// 404 handler (API routes only in production since frontend catch-all is above)
 app.use((_req: Request, res: Response) => {
   res.status(404).json({ error: 'Route not found' });
 });

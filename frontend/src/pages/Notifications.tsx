@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef, DragEvent, ChangeEvent } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+
 import { useAuthStore } from '../stores/authStore';
 import api from '../services/api';
 import { format } from 'date-fns';
@@ -635,7 +635,6 @@ const NOTIFICATION_SOURCE_OPTIONS = [
 
 export default function Notifications() {
   const queryClient = useQueryClient();
-  const navigate = useNavigate();
   const currentProductionLineId = useAuthStore((state) => state.currentProductionLineId);
 
   const { data: productionLinesData } = useQuery<ProductionLine[]>({
