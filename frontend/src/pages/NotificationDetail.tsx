@@ -793,7 +793,7 @@ export default function NotificationDetail() {
 
   const activeZoneCoverageIds = useMemo<number[]>(() => {
     const ids = (notification?.zones || [])
-      .map((zone: any) => Number(zone.kml_coverage_id))
+      .map((zone: any) => Number(zone.product_id || zone.kml_coverage_id))
       .filter((zoneId: number) => Number.isFinite(zoneId));
 
     return Array.from(new Set<number>(ids));
@@ -830,7 +830,7 @@ export default function NotificationDetail() {
   const activeZonesForDisplay = useMemo(() => {
     const uniqueByCoverageId = new Map<number, any>();
     (notification?.zones || []).forEach((zone: any) => {
-      const coverageId = Number(zone.kml_coverage_id);
+      const coverageId = Number(zone.product_id || zone.kml_coverage_id);
       if (!Number.isFinite(coverageId)) return;
       if (!uniqueByCoverageId.has(coverageId)) {
         uniqueByCoverageId.set(coverageId, zone);
@@ -849,7 +849,7 @@ export default function NotificationDetail() {
       const zoneGeometry = parseGeoJsonObject(zone.geometry);
       const geometries = extractRenderableGeometries(zoneGeometry);
       const zoneDetection = (notification?.zones || []).find(
-        (nz: any) => Number(nz.kml_coverage_id) === Number(zone.id)
+        (nz: any) => Number(nz.product_id || nz.kml_coverage_id) === Number(zone.id)
       );
       geometries.forEach((geom: any) => {
         items.push({
@@ -1366,7 +1366,7 @@ export default function NotificationDetail() {
                         <button
                           onClick={() => {
                             if (window.confirm(`Weet u zeker dat u zone '${zone.zone_name || zone.zone_code}' wilt ontkoppelen?`)) {
-                              removeZoneMutation.mutate(Number(zone.kml_coverage_id));
+                              removeZoneMutation.mutate(Number(zone.product_id || zone.kml_coverage_id));
                             }
                           }}
                           disabled={removeZoneMutation.isPending}
@@ -3375,7 +3375,7 @@ export default function NotificationDetail() {
 
                     const isActiveZone = activeZoneCoverageIds.includes(Number(zone.id));
                     const zoneDetection = (notification?.zones || []).find(
-                      (nz: any) => Number(nz.kml_coverage_id) === Number(zone.id)
+                      (nz: any) => Number(nz.product_id || nz.kml_coverage_id) === Number(zone.id)
                     );
 
                     return zoneGeometries.map((geom: any, index: number) => (

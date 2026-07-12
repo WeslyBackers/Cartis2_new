@@ -425,6 +425,7 @@ router.get('/', authenticate, async (req: AuthRequest, res) => {
             json_agg(
               DISTINCT jsonb_build_object(
                 'id', nz.id,
+                'product_id', nz.product_id,
                 'kml_coverage_id', nz.kml_coverage_id,
                 'zone_code', nz.zone_code,
                 'zone_name', nz.zone_name,
@@ -612,6 +613,7 @@ router.get('/:id', authenticate, async (req: AuthRequest, res) => {
             json_agg(
               DISTINCT jsonb_build_object(
                 'id', nz.id,
+                'product_id', nz.product_id,
                 'kml_coverage_id', nz.kml_coverage_id,
                 'zone_code', nz.zone_code,
                 'zone_name', nz.zone_name,

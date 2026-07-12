@@ -234,12 +234,11 @@ export async function detectAffectedZones(notificationId: number): Promise<numbe
       return [];
     }
 
-    // Get all zone coverages
+    // Get all zone products (type='zone')
     const zonesResult = await client.query(
-      `SELECT c.id, c.code, c.name, c.geometry
-       FROM kml_coverages c
-       JOIN kml_files f ON c.kml_file_id = f.id
-       WHERE f.category = 'zones'`
+      `SELECT id, code, name, geometry
+       FROM products
+       WHERE type = 'zone' AND is_active = true`
     );
 
     const affectedZoneIds: number[] = [];
@@ -311,30 +310,31 @@ export async function updateNotificationZones(
     // Insert new zone detections
     if (zoneIds.length > 0) {
       for (const zoneId of zoneIds) {
-        // Get zone information and verify it's actually a zone
+        // Get zone information from products table
         const zoneResult = await client.query(
-          `SELECT c.code, c.name, f.category
-           FROM kml_coverages c
-           JOIN kml_files f ON c.kml_file_id = f.id
-           WHERE c.id = $1`,
+          `SELECT code, name, type
+           FROM products
+           WHERE id = $1 AND type = 'zone'`,
           [zoneId]
         );
 
         if (zoneResult.rows.length > 0) {
           const zone = zoneResult.rows[0];
           
-          // Only insert if it's actually a zone (safeguard against products)
-          if (zone.category === 'zones') {
-            await client.query(
-              `INSERT INTO notification_zones 
-               (notification_id, kml_coverage_id, zone_code, zone_name, detection_method)
-               VALUES ($1, $2, $3, $4, 'automatic')
-               ON CONFLICT (notification_id, kml_coverage_id) DO NOTHING`,
-              [notificationId, zoneId, zone.code, zone.name]
-            );
-          } else {
-            console.warn(`Skipping coverage ${zoneId} (${zone.code}): category is '${zone.category}', not 'zones'`);
-          }
+          await client.query(
+            `INSERT INTO notification_zones 
+             (notification_id, product_id, zone_code, zone_name, detection_method)
+             VALUES ($1, $2, $3, $4, 'automatic')
+             ON CONFLICT (notification_id, product_id) WHERE product_id IS NOT NULL
+             DO UPDATE SET
+               zone_code = EXCLUDED.zone_code,
+               zone_name = EXCLUDED.zone_name,
+               detection_method = 'automatic',
+               detected_at = CURRENT_TIMESTAMP`,
+            [notificationId, zoneId, zone.code, zone.name]
+          );
+        } else {
+          console.warn(`Zone product ${zoneId} not found or not a zone`);
         }
       }
     }
@@ -373,7 +373,7 @@ export async function detectAndUpdateZones(notificationId: number): Promise<stri
  */
 export async function addManualZone(
   notificationId: number,
-  zoneCoverageId: number
+  zoneProductId: number
 ): Promise<void> {
   const client = await pool.connect();
   
@@ -390,34 +390,28 @@ export async function addManualZone(
       throw new Error('notification_zones table does not exist. Please run the database migration.');
     }
 
-    // Get zone information and verify it's actually a zone (not a product)
+    // Get zone information from products table
     const zoneResult = await client.query(
-      `SELECT c.code, c.name, f.category 
-       FROM kml_coverages c
-       JOIN kml_files f ON c.kml_file_id = f.id
-       WHERE c.id = $1`,
-      [zoneCoverageId]
+      `SELECT code, name, type 
+       FROM products
+       WHERE id = $1 AND type = 'zone' AND is_active = true`,
+      [zoneProductId]
     );
 
     if (zoneResult.rows.length === 0) {
-      throw new Error('Zone not found');
+      throw new Error('Zone product not found or not a zone type');
     }
 
     const zone = zoneResult.rows[0];
 
-    // Verify it's actually a zone, not a product
-    if (zone.category !== 'zones') {
-      throw new Error(`Cannot add coverage as zone: it is a ${zone.category}, not a zone`);
-    }
-
     // Insert or update
     await client.query(
       `INSERT INTO notification_zones 
-       (notification_id, kml_coverage_id, zone_code, zone_name, detection_method)
+       (notification_id, product_id, zone_code, zone_name, detection_method)
        VALUES ($1, $2, $3, $4, 'manual')
-       ON CONFLICT (notification_id, kml_coverage_id) 
+       ON CONFLICT (notification_id, product_id) WHERE product_id IS NOT NULL
        DO UPDATE SET detection_method = 'manual', detected_at = CURRENT_TIMESTAMP`,
-      [notificationId, zoneCoverageId, zone.code, zone.name]
+      [notificationId, zoneProductId, zone.code, zone.name]
     );
   } finally {
     client.release();
@@ -429,11 +423,11 @@ export async function addManualZone(
  */
 export async function removeZone(
   notificationId: number,
-  zoneCoverageId: number
+  zoneProductId: number
 ): Promise<void> {
   await pool.query(
     `DELETE FROM notification_zones 
-     WHERE notification_id = $1 AND kml_coverage_id = $2`,
-    [notificationId, zoneCoverageId]
+     WHERE notification_id = $1 AND product_id = $2`,
+    [notificationId, zoneProductId]
   );
 }

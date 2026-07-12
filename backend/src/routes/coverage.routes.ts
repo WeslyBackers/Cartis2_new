@@ -116,20 +116,22 @@ router.get('/zones', authenticate, async (req, res) => {
   try {
     const { code } = req.query;
 
+    // Query products table for zones (type='zone')
     let query = `
-      SELECT c.*, f.display_name as file_name, f.filename
-      FROM kml_coverages c
-      JOIN kml_files f ON c.kml_file_id = f.id
-      WHERE f.category = 'zones'
+      SELECT p.id, p.code, p.name, p.description, p.geometry, p.type,
+             pl.code as production_line_code, pl.name as production_line_name
+      FROM products p
+      LEFT JOIN production_lines pl ON p.production_line_id = pl.id
+      WHERE p.type = 'zone' AND p.is_active = true
     `;
     const params: any[] = [];
 
     if (code) {
-      query += ` AND c.code ILIKE $1`;
+      query += ` AND p.code ILIKE $1`;
       params.push(`%${code}%`);
     }
 
-    query += ' ORDER BY c.code';
+    query += ' ORDER BY p.code';
 
     const result = await pool.query(query, params);
     res.json(result.rows);
