@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "buildCommand": "npm run build --prefix frontend && npm run build --prefix backend",
+  "buildCommand": "npm run build:frontend",
   "outputDirectory": "frontend/dist",
-  "installCommand": "npm install",
+  "installCommand": "npm install && npm install --prefix backend && npm install --prefix frontend",
   "functions": {
     "api/index.ts": {
       "maxDuration": 30,
