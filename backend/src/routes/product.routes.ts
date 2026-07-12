@@ -205,7 +205,7 @@ router.get('/:id', authenticate, async (req, res) => {
   }
 });
 
-// Import products from a KML file and upsert into database
+// Import products or zones from a KML file and upsert into database
 router.post('/import-kml', authenticate, kmlUpload.single('file'), async (req: AuthRequest, res) => {
   const client = await pool.connect();
 
@@ -221,6 +221,15 @@ router.post('/import-kml', authenticate, kmlUpload.single('file'), async (req: A
     const providedProductionLineId = Number(req.body.productionLineId);
     const fileName = req.file.originalname || 'upload.kml';
     const inferred = getProductionLineFromFilename(fileName);
+
+    // Determine import category: 'products' or 'zones'
+    const importCategory = typeof req.body.category === 'string' && req.body.category.trim() 
+      ? req.body.category.trim() 
+      : 'products';
+
+    if (importCategory !== 'products' && importCategory !== 'zones') {
+      return res.status(400).json({ error: 'Category moet "products" of "zones" zijn' });
+    }
 
     let productionLineQuery;
     if (Number.isFinite(providedProductionLineId) && providedProductionLineId > 0) {
@@ -256,7 +265,9 @@ router.post('/import-kml', authenticate, kmlUpload.single('file'), async (req: A
     );
 
     if (rightsResult.rows.length === 0) {
-      return res.status(403).json({ error: 'Geen rechten om producten te importeren voor deze productielijn' });
+      return res.status(403).json({ 
+        error: `Geen rechten om ${importCategory === 'zones' ? 'zones' : 'producten'} te importeren voor deze productielijn` 
+      });
     }
 
     const geoJson = parseKmlToGeoJson(req.file.buffer);
@@ -266,15 +277,43 @@ router.post('/import-kml', authenticate, kmlUpload.single('file'), async (req: A
       return res.status(400).json({ error: 'Geen features gevonden in het KML-bestand' });
     }
 
-    const requestedType = typeof req.body.type === 'string' && req.body.type.trim() ? req.body.type.trim() : null;
-    const fallbackType = inferred?.type || DEFAULT_TYPE_BY_LINE_CODE[productionLine.code] || null;
-
     let inserted = 0;
     let updated = 0;
     let skipped = 0;
     const errors: Array<{ index: number; reason: string; code?: string }> = [];
 
     await client.query('BEGIN');
+
+    // Insert or update kml_files record
+    const fileDisplayName = typeof req.body.displayName === 'string' && req.body.displayName.trim()
+      ? req.body.displayName.trim()
+      : path.basename(fileName, path.extname(fileName));
+    
+    const kmlFileResult = await client.query(
+      `INSERT INTO kml_files (filename, filepath, category, display_name, production_line_id)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (filename)
+       DO UPDATE SET
+         category = EXCLUDED.category,
+         display_name = COALESCE(EXCLUDED.display_name, kml_files.display_name),
+         production_line_id = EXCLUDED.production_line_id,
+         updated_at = CURRENT_TIMESTAMP
+       RETURNING id, (xmax = 0) AS inserted`,
+      [
+        path.basename(fileName),
+        fileName,
+        importCategory,
+        fileDisplayName,
+        productionLine.id,
+      ]
+    );
+
+    const kmlFileId = kmlFileResult.rows[0].id;
+    if (kmlFileResult.rows[0].inserted) {
+      inserted++;
+    } else {
+      updated++;
+    }
 
     for (let index = 0; index < features.length; index++) {
       const feature = features[index];
@@ -287,61 +326,117 @@ router.post('/import-kml', authenticate, kmlUpload.single('file'), async (req: A
       }
 
       const rawCode = feature?.properties?.name;
-      const productCode = typeof rawCode === 'string' ? rawCode.trim() : '';
-      if (!productCode) {
+      const zoneCode = typeof rawCode === 'string' ? rawCode.trim() : '';
+      if (!zoneCode) {
         skipped++;
-        errors.push({ index, reason: 'Feature zonder productcode (name)' });
+        errors.push({ index, reason: 'Feature zonder code (name)' });
         continue;
       }
 
       const description = normalizeDescription(feature?.properties?.description);
       const objnam = extractObjnam(feature?.properties?.description);
-      const name = objnam || productCode;
-      const productType = requestedType || fallbackType;
+      const name = objnam || zoneCode;
+      const geometryType = geometry.type || 'Polygon';
 
-      const upsertResult = await client.query(
-        `INSERT INTO products (
-          production_line_id,
-          code,
-          name,
-          type,
-          description,
-          geometry,
-          is_active
-        )
-        VALUES ($1, $2, $3, $4, $5, $6, true)
-        ON CONFLICT (production_line_id, code)
-        DO UPDATE SET
-          name = COALESCE(EXCLUDED.name, products.name),
-          type = COALESCE(EXCLUDED.type, products.type),
-          description = COALESCE(EXCLUDED.description, products.description),
-          geometry = EXCLUDED.geometry,
-          is_active = true,
-          updated_at = CURRENT_TIMESTAMP
-        RETURNING id, (xmax = 0) AS inserted`,
-        [
-          productionLine.id,
-          productCode,
-          name,
-          productType,
-          description,
-          JSON.stringify(geometry),
-        ]
-      );
+      // Extract additional properties from KML
+      const properties: Record<string, any> = {
+        description: description,
+      };
+      if (feature?.properties) {
+        Object.keys(feature.properties).forEach(key => {
+          if (key !== 'name' && key !== 'description') {
+            properties[key] = feature.properties[key];
+          }
+        });
+      }
 
-      if (upsertResult.rows[0]?.inserted) {
-        inserted++;
+      // For zones import, use kml_coverages table
+      if (importCategory === 'zones') {
+        const upsertResult = await client.query(
+          `INSERT INTO kml_coverages (
+            kml_file_id,
+            code,
+            name,
+            geometry_type,
+            geometry,
+            properties
+          )
+          VALUES ($1, $2, $3, $4, $5, $6)
+          ON CONFLICT (kml_file_id, code)
+          DO UPDATE SET
+            name = COALESCE(EXCLUDED.name, kml_coverages.name),
+            geometry_type = EXCLUDED.geometry_type,
+            geometry = EXCLUDED.geometry,
+            properties = COALESCE(EXCLUDED.properties, kml_coverages.properties),
+            updated_at = CURRENT_TIMESTAMP
+          RETURNING id, (xmax = 0) AS inserted`,
+          [
+            kmlFileId,
+            zoneCode,
+            name,
+            geometryType,
+            JSON.stringify(geometry),
+            JSON.stringify(properties),
+          ]
+        );
+
+        if (upsertResult.rows[0]?.inserted) {
+          inserted++;
+        } else {
+          updated++;
+        }
       } else {
-        updated++;
+        // For products import, use products table (existing logic)
+        const requestedType = typeof req.body.type === 'string' && req.body.type.trim() ? req.body.type.trim() : null;
+        const fallbackType = inferred?.type || DEFAULT_TYPE_BY_LINE_CODE[productionLine.code] || null;
+        const productType = requestedType || fallbackType;
+
+        const upsertResult = await client.query(
+          `INSERT INTO products (
+            production_line_id,
+            code,
+            name,
+            type,
+            description,
+            geometry,
+            is_active
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, true)
+          ON CONFLICT (production_line_id, code)
+          DO UPDATE SET
+            name = COALESCE(EXCLUDED.name, products.name),
+            type = COALESCE(EXCLUDED.type, products.type),
+            description = COALESCE(EXCLUDED.description, products.description),
+            geometry = EXCLUDED.geometry,
+            is_active = true,
+            updated_at = CURRENT_TIMESTAMP
+          RETURNING id, (xmax = 0) AS inserted`,
+          [
+            productionLine.id,
+            zoneCode,
+            name,
+            productType,
+            description,
+            JSON.stringify(geometry),
+          ]
+        );
+
+        if (upsertResult.rows[0]?.inserted) {
+          inserted++;
+        } else {
+          updated++;
+        }
       }
     }
 
     await client.query('COMMIT');
 
     return res.json({
-      message: 'KML import voltooid',
+      message: `KML import voltooid (${importCategory === 'zones' ? 'zones' : 'producten'})`,
       fileName: path.basename(fileName),
       productionLine,
+      category: importCategory,
+      kmlFileId,
       summary: {
         totalFeatures: features.length,
         inserted,
