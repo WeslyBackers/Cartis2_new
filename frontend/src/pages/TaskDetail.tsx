@@ -414,6 +414,7 @@ export default function TaskDetail() {
 
   // BaZ-2 Articles query - only for PUBL production line
   const isPUBL = task?.production_line_code === 'PUBL';
+  const hasBaz2Product = !!(task?.task_products?.some((tp: any) => String(tp.product_code || '').trim().toLowerCase() === 'baz-2'));
   const isZK = currentProductionLineId === 1;
 
   const { data: articles } = useQuery({
@@ -425,12 +426,12 @@ export default function TaskDetail() {
     enabled: !!id,
   });
 
-  // Auto-expand article section for PUBL tasks to make editors visible
+  // Auto-expand article section for PUBL tasks or when BaZ-2 is a linked product
   useEffect(() => {
-    if (isPUBL && articlesCollapsed) {
+    if ((isPUBL || hasBaz2Product) && articlesCollapsed) {
       setArticlesCollapsed(false);
     }
-  }, [isPUBL, articlesCollapsed]);
+  }, [isPUBL, hasBaz2Product, articlesCollapsed]);
 
   // Load workflow content when it changes
   useEffect(() => {
@@ -1832,8 +1833,8 @@ export default function TaskDetail() {
             </div>
           )}
 
-          {/* BaZ-2 Article Editor - only for PUBL */}
-          {(isPUBL || (articles && articles.length > 0)) && (
+          {/* BaZ-2 Article Editor - for PUBL or when BaZ-2 is a linked product */}
+          {(isPUBL || hasBaz2Product || (articles && articles.length > 0)) && (
             <div style={{ backgroundColor: 'white', padding: '1.5rem', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
               <h2
                 onClick={() => setArticlesCollapsed(!articlesCollapsed)}
@@ -1866,7 +1867,7 @@ export default function TaskDetail() {
                         <th style={{ padding: '0.5rem', textAlign: 'left', color: '#6c757d', fontSize: '0.85rem' }}>Tijdelijk</th>
                         <th style={{ padding: '0.5rem', textAlign: 'left', color: '#6c757d', fontSize: '0.85rem' }}>Aangemaakt door</th>
                         <th style={{ padding: '0.5rem', textAlign: 'left', color: '#6c757d', fontSize: '0.85rem' }}>Datum</th>
-                        {isPUBL && <th style={{ padding: '0.5rem', textAlign: 'right', color: '#6c757d', fontSize: '0.85rem' }}>Acties</th>}
+                        {(isPUBL || hasBaz2Product) && <th style={{ padding: '0.5rem', textAlign: 'right', color: '#6c757d', fontSize: '0.85rem' }}>Acties</th>}
                       </tr>
                     </thead>
                     <tbody>
@@ -1896,7 +1897,7 @@ export default function TaskDetail() {
                           <td style={{ padding: '0.5rem', fontSize: '0.9rem' }}>
                             {article.created_at ? format(new Date(article.created_at), 'dd/MM/yyyy HH:mm') : '-'}
                           </td>
-                          {isPUBL && <td style={{ padding: '0.5rem', textAlign: 'right' }}>
+                          {(isPUBL || hasBaz2Product) && <td style={{ padding: '0.5rem', textAlign: 'right' }}>
                             <button
                               onClick={() => {
                                 setEditingArticleId(article.id);
@@ -1979,8 +1980,8 @@ export default function TaskDetail() {
                 </div>
               )}
 
-              {/* Article editor form - only for PUBL */}
-              {isPUBL && <div style={{ padding: '1rem', backgroundColor: '#f8f9fa', borderRadius: '6px', border: '1px solid #dee2e6' }}>
+              {/* Article editor form - for PUBL or when BaZ-2 is a linked product */}
+              {(isPUBL || hasBaz2Product) && <div style={{ padding: '1rem', backgroundColor: '#f8f9fa', borderRadius: '6px', border: '1px solid #dee2e6' }}>
                 <h3 style={{ fontSize: '1rem', marginBottom: '1rem', color: '#343a40' }}>
                   {editingArticleId ? 'Artikel Bewerken' : 'Nieuw Artikel'}
                 </h3>
