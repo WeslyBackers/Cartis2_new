@@ -1168,7 +1168,7 @@ export default function NotificationDetail() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+      <div style={{ position: 'sticky', top: 0, zIndex: 9, display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'var(--color-bg)', marginLeft: '-2rem', marginRight: '-2rem', paddingLeft: '2rem', paddingRight: '2rem', paddingTop: '1rem', paddingBottom: '0.75rem', marginBottom: '1.5rem', borderBottom: '1px solid var(--color-border)', boxShadow: '0 2px 6px rgba(0,0,0,0.06)' }}>
         <h1>Melding Details - {notification.code || `#${notification.id}`}</h1>
         <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
           <button type="button" onClick={() => setIsRightPaneCollapsed(prev => !prev)}>
