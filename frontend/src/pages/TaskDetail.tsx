@@ -973,8 +973,8 @@ export default function TaskDetail() {
   ];
 
   return (
-    <div style={{ padding: '0 2rem 2rem', width: '100%' }}>
-      <div style={{ position: 'sticky', top: 0, zIndex: 9, display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'var(--color-bg)', marginLeft: '-2rem', marginRight: '-2rem', paddingLeft: '2rem', paddingRight: '2rem', paddingTop: '1rem', paddingBottom: '0.75rem', marginBottom: '1.5rem', borderBottom: '1px solid var(--color-border)', boxShadow: '0 2px 6px rgba(0,0,0,0.06)' }}>
+    <div style={{ padding: '2rem', width: '100%' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
         <h1>Taak Details - {task.task_number}</h1>
         <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
           <button
