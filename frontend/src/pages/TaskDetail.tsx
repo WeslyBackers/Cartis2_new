@@ -427,11 +427,14 @@ export default function TaskDetail() {
   });
 
   // Auto-expand article section for PUBL tasks or when BaZ-2 is a linked product
+  // (only when task data first resolves — do NOT include articlesCollapsed in deps,
+  //  otherwise collapsing by the user would immediately re-open the section)
   useEffect(() => {
-    if ((isPUBL || hasBaz2Product) && articlesCollapsed) {
+    if (isPUBL || hasBaz2Product) {
       setArticlesCollapsed(false);
     }
-  }, [isPUBL, hasBaz2Product, articlesCollapsed]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPUBL, hasBaz2Product]);
 
   // Load workflow content when it changes
   useEffect(() => {
