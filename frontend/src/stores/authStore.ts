@@ -7,6 +7,7 @@ interface User {
   firstName: string;
   lastName: string;
   defaultProductionLineId: number;
+  defaultProductionLineName: string | null;
   rights: Array<{
     id: number;
     code: string;
