@@ -143,10 +143,10 @@ export default function Dashboard() {
   }, [notes, noteSortMode]);
 
   const createNoteMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (lineIds: number[]) => {
       const response = await api.post('/notes', {
         content: noteContent,
-        productionLineIds: selectedLineIds,
+        productionLineIds: lineIds,
         priority: notePriority,
       });
       return response.data;
@@ -161,10 +161,10 @@ export default function Dashboard() {
   });
 
   const updateNoteMutation = useMutation({
-    mutationFn: async (noteId: number) => {
+    mutationFn: async ({ noteId, lineIds }: { noteId: number; lineIds: number[] }) => {
       const response = await api.put(`/notes/${noteId}`, {
         content: noteContent,
-        productionLineIds: selectedLineIds,
+        productionLineIds: lineIds,
         priority: notePriority,
       });
       return response.data;
@@ -260,16 +260,24 @@ export default function Dashboard() {
       return;
     }
 
-    if (selectedLineIds.length === 0) {
+    // If no production line is checked in the form, fall back to the user's
+    // standard/default production line instead of blocking the save.
+    const effectiveLineIds = selectedLineIds.length > 0
+      ? selectedLineIds
+      : (user?.defaultProductionLineId ? [Number(user.defaultProductionLineId)] : []);
+
+    if (effectiveLineIds.length === 0) {
       alert('Selecteer minstens een productielijn die de nota mag lezen.');
       return;
     }
 
+    setSelectedLineIds(effectiveLineIds);
+
     try {
       if (editingNoteId) {
-        await updateNoteMutation.mutateAsync(editingNoteId);
+        await updateNoteMutation.mutateAsync({ noteId: editingNoteId, lineIds: effectiveLineIds });
       } else {
-        await createNoteMutation.mutateAsync();
+        await createNoteMutation.mutateAsync(effectiveLineIds);
       }
     } catch (error: any) {
       alert(`Fout bij opslaan van nota: ${getApiErrorMessage(error, 'onbekende fout')}`);
