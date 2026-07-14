@@ -71,7 +71,7 @@ export default function Layout() {
               <option value="">-- Selecteer --</option>
               {productionLines?.map((pl: any) => (
                 <option key={pl.id} value={pl.id}>
-                  {pl.name} ({pl.code})
+                  {pl.name} ({pl.code}){Number(pl.id) === Number(user?.defaultProductionLineId) ? ' — standaard' : ''}
                 </option>
               ))}
             </select>

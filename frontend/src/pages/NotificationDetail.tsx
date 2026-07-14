@@ -1763,13 +1763,33 @@ export default function NotificationDetail() {
                             window.URL.revokeObjectURL(url);
                           } catch (error: any) {
                             console.error('Download error:', error);
-                            // Try to extract the real error message from the server response
+                            // Try to extract the real error message from the server response.
+                            // Falls back progressively so a generic message is only ever shown
+                            // as a last resort, instead of masking the real cause (e.g. a
+                            // timeout, missing storage config, or file no longer on disk).
                             let msg = 'Fout bij downloaden van bestand';
+                            const respData = error?.response?.data;
                             try {
-                              const text = await error?.response?.data?.text?.();
-                              const parsed = text ? JSON.parse(text) : null;
-                              if (parsed?.error) msg = parsed.error;
-                            } catch { /* ignore parse errors */ }
+                              if (respData && typeof respData.text === 'function') {
+                                const text = await respData.text();
+                                if (text) {
+                                  try {
+                                    const parsed = JSON.parse(text);
+                                    if (parsed?.error) msg = parsed.error;
+                                  } catch {
+                                    if (text.trim()) msg = text.length > 300 ? `${text.slice(0, 300)}...` : text;
+                                  }
+                                }
+                              } else if (typeof respData === 'string' && respData.trim()) {
+                                msg = respData;
+                              } else if (respData?.error) {
+                                msg = respData.error;
+                              } else if (error?.response?.status) {
+                                msg = `Fout bij downloaden van bestand (status ${error.response.status})`;
+                              } else if (error?.message) {
+                                msg = `Fout bij downloaden van bestand: ${error.message}`;
+                              }
+                            } catch { /* keep default msg */ }
                             alert(msg);
                           }
                         }}
