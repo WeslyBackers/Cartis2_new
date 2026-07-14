@@ -638,6 +638,10 @@ export default function Notifications() {
   const currentProductionLineId = useAuthStore((state) => state.currentProductionLineId);
   const user = useAuthStore((state) => state.user);
   const activeLineName = user?.rights?.find((r) => Number(r.id) === Number(currentProductionLineId))?.name;
+  const defaultLineName = user?.defaultProductionLineId
+    ? user?.rights?.find((r) => Number(r.id) === Number(user.defaultProductionLineId))?.name
+    : null;
+  const isDefaultLine = Number(currentProductionLineId) === Number(user?.defaultProductionLineId);
 
   const { data: productionLinesData } = useQuery<ProductionLine[]>({
     queryKey: ['productionLines'],
@@ -1319,7 +1323,18 @@ export default function Notifications() {
 
   return (
     <div>
-      <h1 className="page-title">Meldingen{activeLineName && <span className="page-title__production-line"> — {activeLineName}</span>}</h1>
+      <h1 className="page-title">
+        Meldingen
+        {activeLineName && (
+          <span className="page-title__production-line">
+            {' — '}{activeLineName}
+            {isDefaultLine && <span className="page-title__default-badge"> (standaard)</span>}
+            {!isDefaultLine && defaultLineName && (
+              <span className="page-title__default-badge"> · standaard: {defaultLineName}</span>
+            )}
+          </span>
+        )}
+      </h1>
 
       <div className="filter-bar">
         <input

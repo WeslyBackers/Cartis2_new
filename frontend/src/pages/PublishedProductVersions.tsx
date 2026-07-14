@@ -118,6 +118,10 @@ export default function PublishedProductVersions() {
   const currentProductionLineId = useAuthStore((state) => state.currentProductionLineId);
   const user = useAuthStore((state) => state.user);
   const activeLineName = user?.rights?.find((r) => Number(r.id) === Number(currentProductionLineId))?.name;
+  const defaultLineName = user?.defaultProductionLineId
+    ? user?.rights?.find((r) => Number(r.id) === Number(user.defaultProductionLineId))?.name
+    : null;
+  const isDefaultLine = Number(currentProductionLineId) === Number(user?.defaultProductionLineId);
 
   useEffect(() => {
     const lineNames: Record<number, string> = { 1: 'Zeekaart', 2: 'Inland ENC', 3: 'Pilot ENC', 4: 'Publicaties' };
@@ -274,7 +278,18 @@ export default function PublishedProductVersions() {
 
   return (
     <div>
-      <h1 className="page-title">Gepubliceerde Productversies{activeLineName && <span className="page-title__production-line"> — {activeLineName}</span>}</h1>
+      <h1 className="page-title">
+        Gepubliceerde Productversies
+        {activeLineName && (
+          <span className="page-title__production-line">
+            {' — '}{activeLineName}
+            {isDefaultLine && <span className="page-title__default-badge"> (standaard)</span>}
+            {!isDefaultLine && defaultLineName && (
+              <span className="page-title__default-badge"> · standaard: {defaultLineName}</span>
+            )}
+          </span>
+        )}
+      </h1>
 
       {isLoading ? (
         <p className="loading-text">Laden...</p>
