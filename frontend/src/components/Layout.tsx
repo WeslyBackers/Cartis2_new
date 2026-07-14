@@ -69,6 +69,16 @@ export default function Layout() {
                 </option>
               ))}
             </select>
+            {user?.defaultProductionLineId && currentProductionLineId !== user.defaultProductionLineId && (
+              <button
+                type="button"
+                className="production-line-default-btn"
+                onClick={() => setCurrentProductionLine(user.defaultProductionLineId)}
+                title="Terug naar standaard productielijn"
+              >
+                ↩ Standaard
+              </button>
+            )}
             {!currentProductionLineId && (
               <span className="production-line-warning">
                 Selecteer een productielijn

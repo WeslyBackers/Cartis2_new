@@ -292,7 +292,15 @@ export default function Dashboard() {
 
   return (
     <div>
-      <h1 className="page-title">Dashboard</h1>
+      <h1 className="page-title">
+        Dashboard
+        {currentProductionLineId && (() => {
+          const activeLine = user?.rights?.find((r) => Number(r.id) === Number(currentProductionLineId));
+          return activeLine ? (
+            <span className="page-title__production-line"> — {activeLine.name}</span>
+          ) : null;
+        })()}
+      </h1>
 
       {!currentProductionLineId && (
         <div className="dashboard-no-line-alert">
