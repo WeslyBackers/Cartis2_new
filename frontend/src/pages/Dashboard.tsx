@@ -202,9 +202,11 @@ export default function Dashboard() {
   });
 
   const openCreateNote = () => {
-    const defaultSelection = currentProductionLineId
-      ? [currentProductionLineId]
-      : readableProductionLines.map((line) => Number(line.id));
+    // Only preselect lines the user is actually allowed to edit, otherwise the
+    // backend rejects the request as soon as one selected line is view-only.
+    const defaultSelection = currentProductionLineId && editableProductionLineIds.has(Number(currentProductionLineId))
+      ? [Number(currentProductionLineId)]
+      : Array.from(editableProductionLineIds);
 
     setSelectedLineIds(defaultSelection);
     setEditingNoteId(null);
