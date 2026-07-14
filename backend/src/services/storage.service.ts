@@ -58,16 +58,25 @@ export async function serveFile(
   originalFilename: string,
   res: any
 ): Promise<void> {
+  console.log(`[serveFile] filePath=${filePath}, useSupabase=${useSupabase()}, isSupabasePath=${isSupabasePath(filePath)}`);
+
   if (isSupabasePath(filePath)) {
     const { data, error } = await supabase.storage.from(BUCKET).download(filePath);
-    if (error || !data) throw new Error('Bestand niet gevonden in opslag');
+    if (error) throw new Error(`Supabase download failed: ${error.message}`);
+    if (!data) throw new Error('Supabase returned no data for file');
     const buffer = Buffer.from(await data.arrayBuffer());
     res.setHeader('Content-Type', contentType || 'application/octet-stream');
     res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(originalFilename)}"`);
     res.setHeader('Content-Length', buffer.length);
     res.send(buffer);
   } else {
-    if (!fs.existsSync(filePath)) throw new Error('Bestand niet gevonden op server');
+    // Old disk-based path — file is no longer available (ephemeral /tmp on Vercel)
+    if (!fs.existsSync(filePath)) {
+      throw new Error(
+        `Bestand niet meer beschikbaar op schijf (pad: ${filePath}). ` +
+        'Verwijder de bijlage en voeg deze opnieuw toe.'
+      );
+    }
     res.setHeader('Content-Type', contentType || 'application/octet-stream');
     res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(originalFilename)}"`);
     const stat = fs.statSync(filePath);

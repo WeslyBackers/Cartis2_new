@@ -1761,9 +1761,16 @@ export default function NotificationDetail() {
                             link.click();
                             document.body.removeChild(link);
                             window.URL.revokeObjectURL(url);
-                          } catch (error) {
+                          } catch (error: any) {
                             console.error('Download error:', error);
-                            alert('Fout bij downloaden van bestand');
+                            // Try to extract the real error message from the server response
+                            let msg = 'Fout bij downloaden van bestand';
+                            try {
+                              const text = await error?.response?.data?.text?.();
+                              const parsed = text ? JSON.parse(text) : null;
+                              if (parsed?.error) msg = parsed.error;
+                            } catch { /* ignore parse errors */ }
+                            alert(msg);
                           }
                         }}
                         style={{

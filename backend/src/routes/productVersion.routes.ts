@@ -616,10 +616,12 @@ router.get('/:id/attachments/:attachmentId/download', authenticate, async (req: 
 
     const attachment = attachmentResult.rows[0];
 
+    console.log(`[download pv attachment] id=${attachmentId}, file_path=${attachment.file_path}`);
     await serveFile(attachment.file_path, attachment.file_type, attachment.original_filename, res);
-  } catch (error) {
+  } catch (error: any) {
     console.error('Download product version attachment error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    const message = error?.message || 'Internal server error';
+    res.status(500).json({ error: message });
   }
 });
 

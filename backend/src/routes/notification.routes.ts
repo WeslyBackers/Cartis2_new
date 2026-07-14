@@ -1977,9 +1977,10 @@ router.post('/:id/attachments', authenticate, upload.single('file'), async (req:
     );
 
     res.status(201).json(result.rows[0]);
-  } catch (error) {
+  } catch (error: any) {
     console.error('Upload attachment error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    const message = error?.message || 'Internal server error';
+    res.status(500).json({ error: message });
   }
 });
 
@@ -2021,10 +2022,12 @@ router.get('/:id/attachments/:attachmentId/download', authenticate, async (req: 
 
     const attachment = attachmentResult.rows[0];
 
+    console.log(`[download attachment] id=${attachmentId}, file_path=${attachment.file_path}`);
     await serveFile(attachment.file_path, attachment.file_type, attachment.original_filename, res);
-  } catch (error) {
+  } catch (error: any) {
     console.error('Download attachment error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    const message = error?.message || 'Internal server error';
+    res.status(500).json({ error: message });
   }
 });
 
