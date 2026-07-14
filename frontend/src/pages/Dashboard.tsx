@@ -45,6 +45,7 @@ export default function Dashboard() {
   const queryClient = useQueryClient();
   const currentProductionLineId = useAuthStore((state) => state.currentProductionLineId);
   const user = useAuthStore((state) => state.user);
+  const setUser = useAuthStore((state) => state.setUser);
   const isDefaultLine = currentProductionLineId ? Number(currentProductionLineId) === Number(user?.defaultProductionLineId) : true;
   const activeLineName = currentProductionLineId ? user?.rights?.find((r: any) => Number(r.id) === Number(currentProductionLineId))?.name : null;
   const [isCreateNoteOpen, setIsCreateNoteOpen] = useState(false);
@@ -201,12 +202,29 @@ export default function Dashboard() {
     },
   });
 
-  const openCreateNote = () => {
+  const openCreateNote = async () => {
+    // Rights can change server-side (e.g. an admin fixes a user's production
+    // line rights) without the current browser session being refreshed, since
+    // the auth store persists the user/rights across page loads. Refresh from
+    // /auth/me here so we never preselect lines based on stale cached rights.
+    let latestRights = user?.rights || [];
+    try {
+      const response = await api.get('/auth/me');
+      setUser(response.data);
+      latestRights = response.data?.rights || [];
+    } catch {
+      // Ignore refresh failures and fall back to the currently cached rights.
+    }
+
+    const latestEditableIds = new Set(
+      latestRights.filter((r: any) => r.can_edit).map((r: any) => Number(r.id))
+    );
+
     // Only preselect lines the user is actually allowed to edit, otherwise the
     // backend rejects the request as soon as one selected line is view-only.
-    const defaultSelection = currentProductionLineId && editableProductionLineIds.has(Number(currentProductionLineId))
+    const defaultSelection = currentProductionLineId && latestEditableIds.has(Number(currentProductionLineId))
       ? [Number(currentProductionLineId)]
-      : Array.from(editableProductionLineIds);
+      : Array.from(latestEditableIds);
 
     setSelectedLineIds(defaultSelection);
     setEditingNoteId(null);
