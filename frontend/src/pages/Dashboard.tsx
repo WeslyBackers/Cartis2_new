@@ -220,9 +220,11 @@ export default function Dashboard() {
       latestRights.filter((r: any) => r.can_edit).map((r: any) => Number(r.id))
     );
 
-    // Only preselect lines the user is actually allowed to edit, otherwise the
-    // backend rejects the request as soon as one selected line is view-only.
-    const defaultSelection = currentProductionLineId && latestEditableIds.has(Number(currentProductionLineId))
+    // Default to the currently logged-in production line only, so that a note
+    // created without touching the line checkboxes is scoped to that single
+    // line. Only fall back to every editable line when no line is active at
+    // all (e.g. right after login before one is selected).
+    const defaultSelection = currentProductionLineId
       ? [Number(currentProductionLineId)]
       : Array.from(latestEditableIds);
 
