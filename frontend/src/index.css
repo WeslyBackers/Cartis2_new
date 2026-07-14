@@ -410,6 +410,13 @@ table tbody tr:last-child td {
   border-left: 4px solid var(--color-danger);
 }
 
+.page-title--default {
+  background-color: #dbeafe;
+  border-radius: 6px;
+  padding: 0.3rem 0.75rem;
+  border-left: 4px solid var(--color-primary);
+}
+
 .filter-bar {
   display: flex;
   gap: 0.75rem;

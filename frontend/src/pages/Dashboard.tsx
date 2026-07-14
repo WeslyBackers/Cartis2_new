@@ -294,7 +294,7 @@ export default function Dashboard() {
 
   return (
     <div>
-      <h1 className={`page-title${!!currentProductionLineId && !isDefaultLine ? ' page-title--non-default' : ''}`}>
+      <h1 className={`page-title${!!currentProductionLineId ? (isDefaultLine ? ' page-title--default' : ' page-title--non-default') : ''}`}>
         Dashboard
         {currentProductionLineId && (() => {
           const activeLine = user?.rights?.find((r) => Number(r.id) === Number(currentProductionLineId));

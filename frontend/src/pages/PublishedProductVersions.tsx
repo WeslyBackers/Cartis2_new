@@ -276,7 +276,7 @@ export default function PublishedProductVersions() {
 
   return (
     <div>
-      <h1 className={`page-title${!!currentProductionLineId && !isDefaultLine ? ' page-title--non-default' : ''}`}>
+      <h1 className={`page-title${!!currentProductionLineId ? (isDefaultLine ? ' page-title--default' : ' page-title--non-default') : ''}`}>
         Gepubliceerde Productversies
         {activeLineName && (
           <span className="page-title__production-line">
