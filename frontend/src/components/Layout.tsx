@@ -75,7 +75,7 @@ export default function Layout() {
                 </option>
               ))}
             </select>
-            {user?.defaultProductionLineId && currentProductionLineId !== user.defaultProductionLineId && (
+            {user?.defaultProductionLineId && currentProductionLineId !== user.defaultProductionLineId && productionLines.some((pl: any) => Number(pl.id) === Number(user.defaultProductionLineId)) && (
               <button
                 type="button"
                 className="production-line-default-btn"

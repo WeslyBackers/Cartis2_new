@@ -5,7 +5,7 @@ VALUES (
   '$2b$10$pNa4hORJWaIbjFciAQ/Hxe6nWqzpvfKf4UUmjRNALOlqy7zJ0Wnn.', -- password shs
   'Ria',
   'Desnouck',
-  1,     -- default production line id (1=ZK, 2=IENC, 3=PILOT_ENC, 4=PUBL)
+  2,     -- default production line id (1=ZK, 2=IENC, 3=PILOT_ENC, 4=PUBL) -- IMPORTANT: must be one of the lines granted below!
   true
 );
 

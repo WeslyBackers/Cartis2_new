@@ -35,10 +35,19 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       currentProductionLineId: null,
       setAuth: (token, user) => {
+        // The user's default production line is only usable if they actually
+        // have a rights row for it. Onboarding scripts sometimes set
+        // default_production_line_id without granting rights for that line,
+        // which would silently select an inaccessible line (e.g. note
+        // creation failing with "no edit rights" right after login).
+        const rights = user.rights ?? [];
+        const hasDefaultRight = rights.some((r) => Number(r.id) === Number(user.defaultProductionLineId));
+        const fallbackLineId = rights.find((r) => r.can_edit)?.id ?? rights[0]?.id ?? null;
+
         set({
           token,
           user,
-          currentProductionLineId: user.defaultProductionLineId ?? null,
+          currentProductionLineId: hasDefaultRight ? user.defaultProductionLineId : fallbackLineId,
         });
       },
       setUser: (user) => set({ user }),
