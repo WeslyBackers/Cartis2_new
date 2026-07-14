@@ -496,7 +496,7 @@ export default function Tasks() {
 
   return (
     <div>
-      <h1 className={`page-title${!isDefaultLine && activeLineName ? ' page-title--non-default' : ''}`}>
+      <h1 className={`page-title${!!currentProductionLineId && !isDefaultLine ? ' page-title--non-default' : ''}`}>
         Taken
         {activeLineName && (
           <span className="page-title__production-line">

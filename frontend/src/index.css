@@ -404,10 +404,10 @@ table tbody tr:last-child td {
 }
 
 .page-title--non-default {
-  display: inline-block;
-  background-color: var(--color-danger-light);
+  background-color: #fdd;
   border-radius: 6px;
-  padding: 0.2rem 0.75rem;
+  padding: 0.3rem 0.75rem;
+  border-left: 4px solid var(--color-danger);
 }
 
 .filter-bar {

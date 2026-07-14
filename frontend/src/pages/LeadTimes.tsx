@@ -175,7 +175,7 @@ export default function LeadTimes() {
   return (
     <div>
       <div className="page-header">
-        <h1 className={`page-title${!isDefaultLine && activeLineName ? ' page-title--non-default' : ''}`}>
+        <h1 className={`page-title${!!currentProductionLineId && !isDefaultLine ? ' page-title--non-default' : ''}`}>
           Doorlooptijden
           {activeLineName && (
             <span className="page-title__production-line">
