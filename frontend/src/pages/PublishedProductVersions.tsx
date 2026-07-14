@@ -282,9 +282,6 @@ export default function PublishedProductVersions() {
           <span className="page-title__production-line">
             {' — '}{activeLineName}
             {isDefaultLine && <span className="page-title__default-badge"> (standaard)</span>}
-            {!isDefaultLine && defaultLineName && (
-              <span className="page-title__default-badge"> · standaard: {defaultLineName}</span>
-            )}
           </span>
         )}
       </h1>

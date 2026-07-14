@@ -23,6 +23,7 @@ interface AuthState {
   user: User | null;
   currentProductionLineId: number | null;
   setAuth: (token: string, user: User) => void;
+  setUser: (user: User) => void;
   setCurrentProductionLine: (id: number | null) => void;
   logout: () => void;
 }
@@ -40,6 +41,7 @@ export const useAuthStore = create<AuthState>()(
           currentProductionLineId: user.defaultProductionLineId ?? null,
         });
       },
+      setUser: (user) => set({ user }),
       setCurrentProductionLine: (id) => set({ currentProductionLineId: id }),
       logout: () => {
         set({ token: null, user: null, currentProductionLineId: null });

@@ -1,6 +1,7 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { useEffect, useState } from 'react';
+import api from '../services/api';
 import './Layout.css';
 
 type ThemeMode = 'light' | 'dark';
@@ -22,9 +23,14 @@ function getInitialTheme(): ThemeMode {
 
 export default function Layout() {
   const navigate = useNavigate();
-  const { user, currentProductionLineId, setCurrentProductionLine, logout } = useAuthStore();
+  const { user, currentProductionLineId, setCurrentProductionLine, setUser, logout } = useAuthStore();
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
   const [theme, setTheme] = useState<ThemeMode>(() => getInitialTheme());
+
+  // Refresh user data on mount so defaultProductionLineName (and rights) are always up to date
+  useEffect(() => {
+    api.get('/auth/me').then((res) => setUser(res.data)).catch(() => {/* ignore */});
+  }, []);
 
   // Use the production lines the user has rights to (already available from login)
   const productionLines = user?.rights ?? [];

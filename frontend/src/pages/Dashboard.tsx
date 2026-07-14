@@ -304,9 +304,6 @@ export default function Dashboard() {
             <span className="page-title__production-line">
               {' — '}{activeLine.name}
               {isDefault && <span className="page-title__default-badge"> (standaard)</span>}
-              {!isDefault && defaultLine && (
-                <span className="page-title__default-badge"> · standaard: {defaultLine.name}</span>
-              )}
             </span>
           ) : null;
         })()}
