@@ -45,6 +45,8 @@ export default function Dashboard() {
   const queryClient = useQueryClient();
   const currentProductionLineId = useAuthStore((state) => state.currentProductionLineId);
   const user = useAuthStore((state) => state.user);
+  const isDefaultLine = currentProductionLineId ? Number(currentProductionLineId) === Number(user?.defaultProductionLineId) : true;
+  const activeLineName = currentProductionLineId ? user?.rights?.find((r: any) => Number(r.id) === Number(currentProductionLineId))?.name : null;
   const [isCreateNoteOpen, setIsCreateNoteOpen] = useState(false);
   const [editingNoteId, setEditingNoteId] = useState<number | null>(null);
   const [noteContent, setNoteContent] = useState('');
@@ -292,7 +294,7 @@ export default function Dashboard() {
 
   return (
     <div>
-      <h1 className="page-title">
+      <h1 className={`page-title${!isDefaultLine && activeLineName ? ' page-title--non-default' : ''}`}>
         Dashboard
         {currentProductionLineId && (() => {
           const activeLine = user?.rights?.find((r) => Number(r.id) === Number(currentProductionLineId));

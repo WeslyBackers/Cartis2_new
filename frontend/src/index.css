@@ -403,6 +403,13 @@ table tbody tr:last-child td {
   opacity: 0.75;
 }
 
+.page-title--non-default {
+  display: inline-block;
+  background-color: var(--color-danger-light);
+  border-radius: 6px;
+  padding: 0.2rem 0.75rem;
+}
+
 .filter-bar {
   display: flex;
   gap: 0.75rem;
