@@ -116,6 +116,8 @@ export default function PublishedProductVersions() {
   const [isMapExpanded, setIsMapExpanded] = useState(false);
   const [isMapCollapsed, setIsMapCollapsed] = useState(true);
   const currentProductionLineId = useAuthStore((state) => state.currentProductionLineId);
+  const user = useAuthStore((state) => state.user);
+  const activeLineName = user?.rights?.find((r) => Number(r.id) === Number(currentProductionLineId))?.name;
 
   useEffect(() => {
     const lineNames: Record<number, string> = { 1: 'Zeekaart', 2: 'Inland ENC', 3: 'Pilot ENC', 4: 'Publicaties' };
@@ -272,7 +274,7 @@ export default function PublishedProductVersions() {
 
   return (
     <div>
-      <h1 className="page-title">Gepubliceerde Productversies</h1>
+      <h1 className="page-title">Gepubliceerde Productversies{activeLineName && <span className="page-title__production-line"> — {activeLineName}</span>}</h1>
 
       {isLoading ? (
         <p className="loading-text">Laden...</p>

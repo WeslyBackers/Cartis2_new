@@ -38,6 +38,8 @@ const getVersionPillClassName = (isPublished: boolean) =>
 
 export default function LeadTimes() {
   const currentProductionLineId = useAuthStore((state) => state.currentProductionLineId);
+  const user = useAuthStore((state) => state.user);
+  const activeLineName = user?.rights?.find((r) => Number(r.id) === Number(currentProductionLineId))?.name;
   const [search, setSearch] = useState('');
   const [colFilterNotification, setColFilterNotification] = useState('');
   const [colFilterReceived, setColFilterReceived] = useState('');
@@ -171,7 +173,7 @@ export default function LeadTimes() {
   return (
     <div>
       <div className="page-header">
-        <h1>Doorlooptijden</h1>
+        <h1>Doorlooptijden{activeLineName && <span className="page-title__production-line"> — {activeLineName}</span>}</h1>
       </div>
 
       <div className="filter-bar">

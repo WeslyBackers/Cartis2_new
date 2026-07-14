@@ -121,6 +121,8 @@ const isIntegratedCorrectionListCode = (code: string | null | undefined): boolea
 
 export default function Tasks() {
   const currentProductionLineId = useAuthStore((state) => state.currentProductionLineId);
+  const user = useAuthStore((state) => state.user);
+  const activeLineName = user?.rights?.find((r) => Number(r.id) === Number(currentProductionLineId))?.name;
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
   const [search, setSearch] = useState('');
@@ -492,7 +494,7 @@ export default function Tasks() {
 
   return (
     <div>
-      <h1 className="page-title">Taken</h1>
+      <h1 className="page-title">Taken{activeLineName && <span className="page-title__production-line"> — {activeLineName}</span>}</h1>
 
       <div className="filter-bar">
         <input

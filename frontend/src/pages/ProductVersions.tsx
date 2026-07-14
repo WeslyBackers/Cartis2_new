@@ -163,6 +163,8 @@ export default function ProductVersions() {
   const [isMapCollapsed, setIsMapCollapsed] = useState(true);
   const resizeStartRef = useRef<{ startY: number; startHeight: number } | null>(null);
   const currentProductionLineId = useAuthStore((state) => state.currentProductionLineId);
+  const user = useAuthStore((state) => state.user);
+  const activeLineName = user?.rights?.find((r) => Number(r.id) === Number(currentProductionLineId))?.name;
   const queryClient = useQueryClient();
 
   // Set document title
@@ -676,7 +678,7 @@ export default function ProductVersions() {
 
   return (
     <div>
-      <h1 className="page-title">Productversies</h1>
+      <h1 className="page-title">Productversies{activeLineName && <span className="page-title__production-line"> — {activeLineName}</span>}</h1>
 
       <div
         style={{

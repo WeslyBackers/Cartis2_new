@@ -636,6 +636,8 @@ const NOTIFICATION_SOURCE_OPTIONS = [
 export default function Notifications() {
   const queryClient = useQueryClient();
   const currentProductionLineId = useAuthStore((state) => state.currentProductionLineId);
+  const user = useAuthStore((state) => state.user);
+  const activeLineName = user?.rights?.find((r) => Number(r.id) === Number(currentProductionLineId))?.name;
 
   const { data: productionLinesData } = useQuery<ProductionLine[]>({
     queryKey: ['productionLines'],
@@ -1317,7 +1319,7 @@ export default function Notifications() {
 
   return (
     <div>
-      <h1 className="page-title">Meldingen</h1>
+      <h1 className="page-title">Meldingen{activeLineName && <span className="page-title__production-line"> — {activeLineName}</span>}</h1>
 
       <div className="filter-bar">
         <input
