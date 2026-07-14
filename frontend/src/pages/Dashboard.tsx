@@ -296,8 +296,18 @@ export default function Dashboard() {
         Dashboard
         {currentProductionLineId && (() => {
           const activeLine = user?.rights?.find((r) => Number(r.id) === Number(currentProductionLineId));
+          const defaultLine = user?.defaultProductionLineId
+            ? user.rights?.find((r) => Number(r.id) === Number(user.defaultProductionLineId))
+            : null;
+          const isDefault = Number(currentProductionLineId) === Number(user?.defaultProductionLineId);
           return activeLine ? (
-            <span className="page-title__production-line"> — {activeLine.name}</span>
+            <span className="page-title__production-line">
+              {' — '}{activeLine.name}
+              {isDefault && <span className="page-title__default-badge"> (standaard)</span>}
+              {!isDefault && defaultLine && (
+                <span className="page-title__default-badge"> · standaard: {defaultLine.name}</span>
+              )}
+            </span>
           ) : null;
         })()}
       </h1>
