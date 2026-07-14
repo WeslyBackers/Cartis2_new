@@ -2,6 +2,7 @@ import { Router } from 'express';
 import pool from '../config/database';
 import { authenticate, AuthRequest } from '../middleware/auth.middleware';
 import upload from '../middleware/upload.middleware';
+import { saveFile, serveFile, deleteFile } from '../services/storage.service';
 import { detectAndUpdateZones, addManualZone, removeZone } from '../services/zoneDetection.service';
 import { createHpdProjectForTask } from '../services/hpdProject.service';
 import { getOrCreateInProgressProductVersion } from '../services/productVersion.service';
@@ -1958,13 +1959,15 @@ router.post('/:id/attachments', authenticate, upload.single('file'), async (req:
       return res.status(404).json({ error: 'Melding niet gevonden' });
     }
 
+    const storagePath = await saveFile(file.buffer, file.mimetype, file.originalname, `notifications/${id}`);
+
     // Store attachment metadata in database
     const result = await pool.query(
       `INSERT INTO attachments 
         (notification_id, filename, original_filename, file_path, file_type, file_size, uploaded_by)
       VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING *`,
-      [id, file.filename, file.originalname, file.path, file.mimetype, file.size, userId]
+      [id, file.originalname, file.originalname, storagePath, file.mimetype, file.size, userId]
     );
 
     // Log activity
@@ -2017,22 +2020,8 @@ router.get('/:id/attachments/:attachmentId/download', authenticate, async (req: 
     }
 
     const attachment = attachmentResult.rows[0];
-    const fs = require('fs');
-    const path = require('path');
 
-    // Check if file exists
-    if (!fs.existsSync(attachment.file_path)) {
-      return res.status(404).json({ error: 'Bestand niet gevonden op server' });
-    }
-
-    // Set appropriate headers
-    res.setHeader('Content-Type', attachment.file_type || 'application/octet-stream');
-    res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(attachment.original_filename)}"`);
-    res.setHeader('Content-Length', attachment.file_size);
-
-    // Stream the file
-    const fileStream = fs.createReadStream(attachment.file_path);
-    fileStream.pipe(res);
+    await serveFile(attachment.file_path, attachment.file_type, attachment.original_filename, res);
   } catch (error) {
     console.error('Download attachment error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -2057,11 +2046,8 @@ router.delete('/:id/attachments/:attachmentId', authenticate, async (req: AuthRe
 
     const attachment = attachmentResult.rows[0];
 
-    // Delete file from filesystem
-    const fs = require('fs');
-    if (fs.existsSync(attachment.file_path)) {
-      fs.unlinkSync(attachment.file_path);
-    }
+    // Delete file from storage
+    await deleteFile(attachment.file_path);
 
     // Delete from database
     await pool.query('DELETE FROM attachments WHERE id = $1', [attachmentId]);
