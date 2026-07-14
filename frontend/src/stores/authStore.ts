@@ -36,7 +36,7 @@ export const useAuthStore = create<AuthState>()(
         set({
           token,
           user,
-          currentProductionLineId: null,
+          currentProductionLineId: user.defaultProductionLineId ?? null,
         });
       },
       setCurrentProductionLine: (id) => set({ currentProductionLineId: id }),
