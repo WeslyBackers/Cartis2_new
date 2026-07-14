@@ -208,6 +208,22 @@
   font-weight: 700 !important;
 }
 
+/* Non-default production line: cells */
+.pl-col--active--non-default {
+  background-color: #fdd !important;
+  font-weight: 700 !important;
+}
+
+/* Non-default production line: header cells */
+th.pl-col--active--non-default {
+  background-color: #d32f2f !important;
+  color: #fff !important;
+  border-left: 4px solid #b71c1c !important;
+  border-right: 4px solid #b71c1c !important;
+  border-top: 4px solid #b71c1c !important;
+  box-shadow: 0 2px 8px rgba(211, 47, 47, 0.3) !important;
+}
+
 /* ---- Action Buttons Row ---- */
 .action-btn {
   display: inline-flex;

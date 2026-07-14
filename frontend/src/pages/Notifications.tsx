@@ -1459,14 +1459,14 @@ export default function Notifications() {
                     style={{ 
                       minWidth: '80px',
                       textAlign: 'center',
-                      backgroundColor: pl.id === currentProductionLineId ? '#0066cc' : undefined,
+                      backgroundColor: pl.id === currentProductionLineId ? (isDefaultLine ? '#0066cc' : '#d32f2f') : undefined,
                       color: pl.id === currentProductionLineId ? '#fff' : undefined,
                       fontWeight: pl.id === currentProductionLineId ? 'bold' : undefined,
-                      borderLeft: pl.id === currentProductionLineId ? '4px solid #004080' : undefined,
-                      borderRight: pl.id === currentProductionLineId ? '4px solid #004080' : undefined,
-                      borderTop: pl.id === currentProductionLineId ? '4px solid #004080' : undefined,
+                      borderLeft: pl.id === currentProductionLineId ? `4px solid ${isDefaultLine ? '#004080' : '#b71c1c'}` : undefined,
+                      borderRight: pl.id === currentProductionLineId ? `4px solid ${isDefaultLine ? '#004080' : '#b71c1c'}` : undefined,
+                      borderTop: pl.id === currentProductionLineId ? `4px solid ${isDefaultLine ? '#004080' : '#b71c1c'}` : undefined,
                       position: 'relative',
-                      boxShadow: pl.id === currentProductionLineId ? '0 2px 8px rgba(0, 102, 204, 0.3)' : undefined
+                      boxShadow: pl.id === currentProductionLineId ? `0 2px 8px rgba(${isDefaultLine ? '0, 102, 204' : '211, 47, 47'}, 0.3)` : undefined
                     }} 
                     title={pl.name + (pl.id === currentProductionLineId ? ' (actief)' : '')}
                   >
@@ -1684,7 +1684,7 @@ export default function Notifications() {
                           <td 
                             key={pl.id} 
                             onClick={() => toggleExpand(notification.id)} 
-                            className={isActive ? 'pl-col--active' : ''}
+                          className={isActive ? (isDefaultLine ? 'pl-col--active' : 'pl-col--active--non-default') : ''}
                             style={{ textAlign: 'center' }}
                           >
                             <span

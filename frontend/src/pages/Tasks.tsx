@@ -561,7 +561,7 @@ export default function Tasks() {
                   Info{getSortIcon('needs_extra_info')}
                 </th>
                 <th>Producten</th>
-                <th>Status</th>
+                <th className={!isDefaultLine ? 'pl-col--active--non-default' : ''}>Status</th>
                 {isCurrentLineWaitForZk && <th>Wachten op ZK</th>}
                 {productionLineColumns.map((pl: any) => (
                   <th key={`pl-col-${pl.id}`}>{pl.code}</th>
@@ -602,7 +602,7 @@ export default function Tasks() {
                 <th>
                   <input value={colFilterProducts} onChange={(e) => setColFilterProducts(e.target.value)} placeholder="Filter" style={{ width: '100%' }} />
                 </th>
-                <th>
+                <th className={!isDefaultLine ? 'pl-col--active--non-default' : ''}>
                   <input value={colFilterStatus} onChange={(e) => setColFilterStatus(e.target.value)} placeholder="Filter" style={{ width: '100%' }} />
                 </th>
                 {isCurrentLineWaitForZk && (
@@ -757,7 +757,7 @@ export default function Tasks() {
                       </td>
                       <td
                         onClick={() => toggleExpand(task.id)}
-                        className="pl-col--active"
+                        className={isDefaultLine ? 'pl-col--active' : 'pl-col--active--non-default'}
                       >
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', alignItems: 'flex-start' }}>
                           <span
