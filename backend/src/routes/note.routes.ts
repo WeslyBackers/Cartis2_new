@@ -169,7 +169,7 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
       `SELECT production_line_id
        FROM user_production_line_rights
        WHERE user_id = $1
-         AND can_edit = true
+         AND can_view = true
          AND production_line_id = ANY($2::int[])`,
       [userId, uniqueProductionLineIds]
     );
@@ -178,7 +178,7 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
     const disallowedIds = uniqueProductionLineIds.filter((id: number) => !allowedIds.includes(id));
 
     if (disallowedIds.length > 0) {
-      return res.status(403).json({ error: 'Geen bewerkrechten op een of meer geselecteerde productielijnen' });
+      return res.status(403).json({ error: 'Geen toegang tot een of meer geselecteerde productielijnen' });
     }
 
     await client.query('BEGIN');
@@ -273,7 +273,7 @@ router.put('/:id', authenticate, async (req: AuthRequest, res) => {
       `SELECT production_line_id
        FROM user_production_line_rights
        WHERE user_id = $1
-         AND can_edit = true
+         AND can_view = true
          AND production_line_id = ANY($2::int[])`,
       [userId, uniqueProductionLineIds]
     );
@@ -282,7 +282,7 @@ router.put('/:id', authenticate, async (req: AuthRequest, res) => {
     const disallowedIds = uniqueProductionLineIds.filter((id: number) => !allowedIds.includes(id));
 
     if (disallowedIds.length > 0) {
-      return res.status(403).json({ error: 'Geen bewerkrechten op een of meer geselecteerde productielijnen' });
+      return res.status(403).json({ error: 'Geen toegang tot een of meer geselecteerde productielijnen' });
     }
 
     await client.query('BEGIN');
