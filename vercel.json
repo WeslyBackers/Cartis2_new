@@ -2,7 +2,7 @@
   "version": 2,
   "buildCommand": "npm run -w frontend build",
   "outputDirectory": "frontend/dist",
-  "installCommand": "npm install --include=dev && npm install --include=dev --prefix frontend",
+  "installCommand": "npm install --include=dev",
   "functions": {
     "api/index.ts": {
       "maxDuration": 30,
