@@ -96,11 +96,11 @@
   color: var(--color-text-secondary);
 }
 
-.user-name-pill {
+.user-info .user-name-pill {
   display: inline-flex;
   align-items: center;
-  background-color: #dbeafe;
-  color: #1e40af;
+  background-color: #2563eb;
+  color: #ffffff;
   font-size: 0.8125rem;
   font-weight: 600;
   padding: 0.25rem 0.75rem;
