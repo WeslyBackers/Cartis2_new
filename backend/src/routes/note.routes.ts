@@ -165,20 +165,14 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
       return res.status(400).json({ error: 'Ongeldige productielijnen' });
     }
 
-    const rightsResult = await client.query(
-      `SELECT production_line_id
-       FROM user_production_line_rights
-       WHERE user_id = $1
-         AND can_edit = true
-         AND production_line_id = ANY($2::int[])`,
-      [userId, uniqueProductionLineIds]
+    const validLinesResult = await client.query(
+      `SELECT id FROM production_lines WHERE id = ANY($1::int[]) AND is_active = true`,
+      [uniqueProductionLineIds]
     );
-
-    const allowedIds = rightsResult.rows.map((row: any) => Number(row.production_line_id));
-    const disallowedIds = uniqueProductionLineIds.filter((id: number) => !allowedIds.includes(id));
-
-    if (disallowedIds.length > 0) {
-      return res.status(403).json({ error: 'Geen bewerkrechten op een of meer geselecteerde productielijnen' });
+    const validIds = validLinesResult.rows.map((row: any) => Number(row.id));
+    const invalidIds = uniqueProductionLineIds.filter((id: number) => !validIds.includes(id));
+    if (invalidIds.length > 0) {
+      return res.status(400).json({ error: 'Ongeldige productielijnen' });
     }
 
     await client.query('BEGIN');
@@ -269,20 +263,14 @@ router.put('/:id', authenticate, async (req: AuthRequest, res) => {
       return res.status(404).json({ error: 'Nota niet gevonden' });
     }
 
-    const rightsResult = await client.query(
-      `SELECT production_line_id
-       FROM user_production_line_rights
-       WHERE user_id = $1
-         AND can_edit = true
-         AND production_line_id = ANY($2::int[])`,
-      [userId, uniqueProductionLineIds]
+    const validLinesResult = await client.query(
+      `SELECT id FROM production_lines WHERE id = ANY($1::int[]) AND is_active = true`,
+      [uniqueProductionLineIds]
     );
-
-    const allowedIds = rightsResult.rows.map((row: any) => Number(row.production_line_id));
-    const disallowedIds = uniqueProductionLineIds.filter((id: number) => !allowedIds.includes(id));
-
-    if (disallowedIds.length > 0) {
-      return res.status(403).json({ error: 'Geen bewerkrechten op een of meer geselecteerde productielijnen' });
+    const validIds = validLinesResult.rows.map((row: any) => Number(row.id));
+    const invalidIds = uniqueProductionLineIds.filter((id: number) => !validIds.includes(id));
+    if (invalidIds.length > 0) {
+      return res.status(400).json({ error: 'Ongeldige productielijnen' });
     }
 
     await client.query('BEGIN');

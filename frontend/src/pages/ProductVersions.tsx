@@ -163,6 +163,10 @@ export default function ProductVersions() {
   const [isMapCollapsed, setIsMapCollapsed] = useState(true);
   const resizeStartRef = useRef<{ startY: number; startHeight: number } | null>(null);
   const currentProductionLineId = useAuthStore((state) => state.currentProductionLineId);
+  const user = useAuthStore((state) => state.user);
+  const activeLineName = user?.rights?.find((r) => Number(r.id) === Number(currentProductionLineId))?.name;
+  const defaultLineName = user?.defaultProductionLineName ?? null;
+  const isDefaultLine = Number(currentProductionLineId) === Number(user?.defaultProductionLineId);
   const queryClient = useQueryClient();
 
   // Set document title
@@ -517,11 +521,15 @@ export default function ProductVersions() {
   const currentLine = (productionLines || []).find((line: any) => Number(line.id) === Number(currentProductionLineId));
   const isPublLine = (currentLine?.code || '').toUpperCase() === 'PUBL';
   const visibleProducts = (products || []).filter((product: any) => !(isPublLine && isIntegratedCorrectionListCode(product?.code)));
+  // Fall back to list data so buttons are visible immediately on click, before detail query resolves
+  const selectedVersionListData = (versions || []).find((v: any) => Number(v.id) === selectedVersionId);
+  const selectedVersionProductCode = (selectedVersion || selectedVersionListData)?.product_code;
+  const selectedVersionProductName = (selectedVersion || selectedVersionListData)?.product_name;
   const isSelectedVersionCorrectionList = isPublLine && isCorrectionListProduct(
-    selectedVersion?.product_code,
-    selectedVersion?.product_name
+    selectedVersionProductCode,
+    selectedVersionProductName
   );
-  const isSelectedVersionBaz2 = String(selectedVersion?.product_code || '').trim().toLowerCase() === 'baz-2';
+  const isSelectedVersionBaz2 = String(selectedVersionProductCode || '').trim().toLowerCase() === 'baz-2';
 
   const { data: correctionListPreview, isLoading: isLoadingCorrectionListPreview } = useQuery({
     queryKey: ['productVersionCorrectionListPreview', selectedVersionId],
@@ -672,7 +680,15 @@ export default function ProductVersions() {
 
   return (
     <div>
-      <h1 className="page-title">Productversies</h1>
+      <h1 className={`page-title${!!currentProductionLineId ? (isDefaultLine ? ' page-title--default' : ' page-title--non-default') : ''}`}>
+        Productversies
+        {activeLineName && (
+          <span className="page-title__production-line">
+            {' — '}{activeLineName}
+            {isDefaultLine && <span className="page-title__default-badge"> (standaard)</span>}
+          </span>
+        )}
+      </h1>
 
       <div
         style={{

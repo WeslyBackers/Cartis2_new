@@ -2,6 +2,7 @@ import { Router } from 'express';
 import pool from '../config/database';
 import { authenticate, AuthRequest } from '../middleware/auth.middleware';
 import upload from '../middleware/upload.middleware';
+import { saveFile, serveFile } from '../services/storage.service';
 import { generateNextVersionNumber, getOrCreateInProgressProductVersion } from '../services/productVersion.service';
 import { createCorrectionListPreview, isPublCorrectionListProduct } from '../services/correctionList.service';
 import { createBaz2PublicationPreview } from '../services/baz2Publication.service';
@@ -556,12 +557,14 @@ router.post('/:id/attachments', authenticate, upload.single('file'), async (req:
       return res.status(404).json({ error: 'Productversie niet gevonden' });
     }
 
+    const storagePath = await saveFile(file.buffer, file.mimetype, file.originalname, `product-versions/${id}`);
+
     const result = await pool.query(
       `INSERT INTO product_version_attachments
         (product_version_id, filename, original_filename, file_path, file_type, file_size, uploaded_by)
        VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING *`,
-      [id, file.filename, file.originalname, file.path, file.mimetype, file.size, userId]
+      [id, file.originalname, file.originalname, storagePath, file.mimetype, file.size, userId]
     );
 
     await pool.query(
@@ -612,21 +615,13 @@ router.get('/:id/attachments/:attachmentId/download', authenticate, async (req: 
     }
 
     const attachment = attachmentResult.rows[0];
-    const fs = require('fs');
 
-    if (!fs.existsSync(attachment.file_path)) {
-      return res.status(404).json({ error: 'Bestand niet gevonden op server' });
-    }
-
-    res.setHeader('Content-Type', attachment.file_type || 'application/octet-stream');
-    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(attachment.original_filename)}"`);
-    res.setHeader('Content-Length', attachment.file_size);
-
-    const fileStream = fs.createReadStream(attachment.file_path);
-    fileStream.pipe(res);
-  } catch (error) {
+    console.log(`[download pv attachment] id=${attachmentId}, file_path=${attachment.file_path}`);
+    await serveFile(attachment.file_path, attachment.file_type, attachment.original_filename, res);
+  } catch (error: any) {
     console.error('Download product version attachment error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    const message = error?.message || 'Internal server error';
+    res.status(500).json({ error: message });
   }
 });
 

@@ -45,6 +45,8 @@ export default function Dashboard() {
   const queryClient = useQueryClient();
   const currentProductionLineId = useAuthStore((state) => state.currentProductionLineId);
   const user = useAuthStore((state) => state.user);
+  const isDefaultLine = currentProductionLineId ? Number(currentProductionLineId) === Number(user?.defaultProductionLineId) : true;
+  const activeLineName = currentProductionLineId ? user?.rights?.find((r: any) => Number(r.id) === Number(currentProductionLineId))?.name : null;
   const [isCreateNoteOpen, setIsCreateNoteOpen] = useState(false);
   const [editingNoteId, setEditingNoteId] = useState<number | null>(null);
   const [noteContent, setNoteContent] = useState('');
@@ -90,6 +92,15 @@ export default function Dashboard() {
         .map((right) => Number(right.id))
     );
   }, [user]);
+
+  const { data: allProductionLines = [] } = useQuery({
+    queryKey: ['allProductionLines'],
+    queryFn: async () => {
+      const response = await api.get('/production-lines');
+      return response.data as { id: number; code: string; name: string }[];
+    },
+    enabled: !!user,
+  });
 
   const { data: notes, isLoading: isLoadingNotes } = useQuery({
     queryKey: ['dashboardNotes', currentProductionLineId],
@@ -140,10 +151,10 @@ export default function Dashboard() {
   }, [notes, noteSortMode]);
 
   const createNoteMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (lineIds: number[]) => {
       const response = await api.post('/notes', {
         content: noteContent,
-        productionLineIds: selectedLineIds,
+        productionLineIds: lineIds,
         priority: notePriority,
       });
       return response.data;
@@ -158,10 +169,10 @@ export default function Dashboard() {
   });
 
   const updateNoteMutation = useMutation({
-    mutationFn: async (noteId: number) => {
+    mutationFn: async ({ noteId, lineIds }: { noteId: number; lineIds: number[] }) => {
       const response = await api.put(`/notes/${noteId}`, {
         content: noteContent,
-        productionLineIds: selectedLineIds,
+        productionLineIds: lineIds,
         priority: notePriority,
       });
       return response.data;
@@ -200,9 +211,11 @@ export default function Dashboard() {
   });
 
   const openCreateNote = () => {
+    // Default to the current production line; fall back to all lines when
+    // no production line is active (e.g. right after first login).
     const defaultSelection = currentProductionLineId
-      ? [currentProductionLineId]
-      : readableProductionLines.map((line) => Number(line.id));
+      ? [Number(currentProductionLineId)]
+      : allProductionLines.map((l) => Number(l.id));
 
     setSelectedLineIds(defaultSelection);
     setEditingNoteId(null);
@@ -236,16 +249,26 @@ export default function Dashboard() {
       return;
     }
 
-    if (selectedLineIds.length === 0) {
+    // If no production line is checked in the form, fall back to the user's
+    // standard/default production line instead of blocking the save.
+    const effectiveLineIds = selectedLineIds.length > 0
+      ? selectedLineIds
+      : (currentProductionLineId
+          ? [Number(currentProductionLineId)]
+          : allProductionLines.map((l) => Number(l.id)));
+
+    if (effectiveLineIds.length === 0) {
       alert('Selecteer minstens een productielijn die de nota mag lezen.');
       return;
     }
 
+    setSelectedLineIds(effectiveLineIds);
+
     try {
       if (editingNoteId) {
-        await updateNoteMutation.mutateAsync(editingNoteId);
+        await updateNoteMutation.mutateAsync({ noteId: editingNoteId, lineIds: effectiveLineIds });
       } else {
-        await createNoteMutation.mutateAsync();
+        await createNoteMutation.mutateAsync(effectiveLineIds);
       }
     } catch (error: any) {
       alert(`Fout bij opslaan van nota: ${getApiErrorMessage(error, 'onbekende fout')}`);
@@ -292,7 +315,22 @@ export default function Dashboard() {
 
   return (
     <div>
-      <h1 className="page-title">Dashboard</h1>
+      <h1 className={`page-title${!!currentProductionLineId ? (isDefaultLine ? ' page-title--default' : ' page-title--non-default') : ''}`}>
+        Dashboard
+        {currentProductionLineId && (() => {
+          const activeLine = user?.rights?.find((r) => Number(r.id) === Number(currentProductionLineId));
+          const defaultLine = user?.defaultProductionLineName
+            ? { name: user.defaultProductionLineName }
+            : null;
+          const isDefault = Number(currentProductionLineId) === Number(user?.defaultProductionLineId);
+          return activeLine ? (
+            <span className="page-title__production-line">
+              {' — '}{activeLine.name}
+              {isDefault && <span className="page-title__default-badge"> (standaard)</span>}
+            </span>
+          ) : null;
+        })()}
+      </h1>
 
       {!currentProductionLineId && (
         <div className="dashboard-no-line-alert">
@@ -539,7 +577,7 @@ export default function Dashboard() {
             <div style={{ marginBottom: '0.75rem' }}>
               <div style={{ fontWeight: 600, marginBottom: '0.45rem' }}>Leesbaar voor productielijnen</div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.6rem' }}>
-                {readableProductionLines.map((line) => (
+                {allProductionLines.map((line) => (
                   <label
                     key={`line-${line.id}`}
                     style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '0.35rem 0.55rem', border: '1px solid #dee2e6', borderRadius: '999px', cursor: 'pointer' }}

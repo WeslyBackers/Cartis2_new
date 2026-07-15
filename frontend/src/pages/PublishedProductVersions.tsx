@@ -116,6 +116,10 @@ export default function PublishedProductVersions() {
   const [isMapExpanded, setIsMapExpanded] = useState(false);
   const [isMapCollapsed, setIsMapCollapsed] = useState(true);
   const currentProductionLineId = useAuthStore((state) => state.currentProductionLineId);
+  const user = useAuthStore((state) => state.user);
+  const activeLineName = user?.rights?.find((r) => Number(r.id) === Number(currentProductionLineId))?.name;
+  const defaultLineName = user?.defaultProductionLineName ?? null;
+  const isDefaultLine = Number(currentProductionLineId) === Number(user?.defaultProductionLineId);
 
   useEffect(() => {
     const lineNames: Record<number, string> = { 1: 'Zeekaart', 2: 'Inland ENC', 3: 'Pilot ENC', 4: 'Publicaties' };
@@ -179,11 +183,15 @@ export default function PublishedProductVersions() {
 
   const currentLine = (productionLines || []).find((line: any) => Number(line.id) === Number(currentProductionLineId));
   const isPublLine = (currentLine?.code || '').toUpperCase() === 'PUBL';
+  // Fall back to list data so buttons are visible immediately on click, before detail query resolves
+  const selectedVersionListData = (versions || []).find((v: any) => Number(v.id) === selectedVersionId);
+  const selectedVersionProductCode = (selectedVersion || selectedVersionListData)?.product_code;
+  const selectedVersionProductName = (selectedVersion || selectedVersionListData)?.product_name;
   const isSelectedVersionCorrectionList = isPublLine && isCorrectionListProduct(
-    selectedVersion?.product_code,
-    selectedVersion?.product_name
+    selectedVersionProductCode,
+    selectedVersionProductName
   );
-  const isSelectedVersionBaz2 = String(selectedVersion?.product_code || '').trim().toLowerCase() === 'baz-2';
+  const isSelectedVersionBaz2 = String(selectedVersionProductCode || '').trim().toLowerCase() === 'baz-2';
 
   const { data: correctionListPreview, isLoading: isLoadingCorrectionListPreview } = useQuery({
     queryKey: ['publishedProductVersionCorrectionListPreview', selectedVersionId],
@@ -268,7 +276,15 @@ export default function PublishedProductVersions() {
 
   return (
     <div>
-      <h1 className="page-title">Gepubliceerde Productversies</h1>
+      <h1 className={`page-title${!!currentProductionLineId ? (isDefaultLine ? ' page-title--default' : ' page-title--non-default') : ''}`}>
+        Gepubliceerde Productversies
+        {activeLineName && (
+          <span className="page-title__production-line">
+            {' — '}{activeLineName}
+            {isDefaultLine && <span className="page-title__default-badge"> (standaard)</span>}
+          </span>
+        )}
+      </h1>
 
       {isLoading ? (
         <p className="loading-text">Laden...</p>

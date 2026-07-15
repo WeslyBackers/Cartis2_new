@@ -121,6 +121,10 @@ const isIntegratedCorrectionListCode = (code: string | null | undefined): boolea
 
 export default function Tasks() {
   const currentProductionLineId = useAuthStore((state) => state.currentProductionLineId);
+  const user = useAuthStore((state) => state.user);
+  const activeLineName = user?.rights?.find((r) => Number(r.id) === Number(currentProductionLineId))?.name;
+  const defaultLineName = user?.defaultProductionLineName ?? null;
+  const isDefaultLine = Number(currentProductionLineId) === Number(user?.defaultProductionLineId);
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
   const [search, setSearch] = useState('');
@@ -492,7 +496,15 @@ export default function Tasks() {
 
   return (
     <div>
-      <h1 className="page-title">Taken</h1>
+      <h1 className={`page-title${!!currentProductionLineId ? (isDefaultLine ? ' page-title--default' : ' page-title--non-default') : ''}`}>
+        Taken
+        {activeLineName && (
+          <span className="page-title__production-line">
+            {' — '}{activeLineName}
+            {isDefaultLine && <span className="page-title__default-badge"> (standaard)</span>}
+          </span>
+        )}
+      </h1>
 
       <div className="filter-bar">
         <input
@@ -549,7 +561,7 @@ export default function Tasks() {
                   Info{getSortIcon('needs_extra_info')}
                 </th>
                 <th>Producten</th>
-                <th>Status</th>
+                <th className={!isDefaultLine ? 'pl-col--active--non-default' : ''}>Status</th>
                 {isCurrentLineWaitForZk && <th>Wachten op ZK</th>}
                 {productionLineColumns.map((pl: any) => (
                   <th key={`pl-col-${pl.id}`}>{pl.code}</th>
@@ -590,7 +602,7 @@ export default function Tasks() {
                 <th>
                   <input value={colFilterProducts} onChange={(e) => setColFilterProducts(e.target.value)} placeholder="Filter" style={{ width: '100%' }} />
                 </th>
-                <th>
+                <th className={!isDefaultLine ? 'pl-col--active--non-default' : ''}>
                   <input value={colFilterStatus} onChange={(e) => setColFilterStatus(e.target.value)} placeholder="Filter" style={{ width: '100%' }} />
                 </th>
                 {isCurrentLineWaitForZk && (
@@ -745,7 +757,7 @@ export default function Tasks() {
                       </td>
                       <td
                         onClick={() => toggleExpand(task.id)}
-                        className="pl-col--active"
+                        className={isDefaultLine ? 'pl-col--active' : 'pl-col--active--non-default'}
                       >
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', alignItems: 'flex-start' }}>
                           <span

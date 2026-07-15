@@ -390,6 +390,33 @@ table tbody tr:last-child td {
   margin-bottom: 1.5rem;
 }
 
+.page-title__production-line {
+  font-size: 1.1rem;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+}
+
+.page-title__default-badge {
+  font-size: 0.85rem;
+  font-weight: 400;
+  color: var(--color-text-secondary);
+  opacity: 0.75;
+}
+
+.page-title--non-default {
+  background-color: #fdd;
+  border-radius: 6px;
+  padding: 0.3rem 0.75rem;
+  border-left: 4px solid var(--color-danger);
+}
+
+.page-title--default {
+  background-color: #dbeafe;
+  border-radius: 6px;
+  padding: 0.3rem 0.75rem;
+  border-left: 4px solid var(--color-primary);
+}
+
 .filter-bar {
   display: flex;
   gap: 0.75rem;

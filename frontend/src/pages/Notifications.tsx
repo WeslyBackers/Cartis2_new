@@ -636,6 +636,10 @@ const NOTIFICATION_SOURCE_OPTIONS = [
 export default function Notifications() {
   const queryClient = useQueryClient();
   const currentProductionLineId = useAuthStore((state) => state.currentProductionLineId);
+  const user = useAuthStore((state) => state.user);
+  const activeLineName = user?.rights?.find((r) => Number(r.id) === Number(currentProductionLineId))?.name;
+  const defaultLineName = user?.defaultProductionLineName ?? null;
+  const isDefaultLine = Number(currentProductionLineId) === Number(user?.defaultProductionLineId);
 
   const { data: productionLinesData } = useQuery<ProductionLine[]>({
     queryKey: ['productionLines'],
@@ -1317,7 +1321,15 @@ export default function Notifications() {
 
   return (
     <div>
-      <h1 className="page-title">Meldingen</h1>
+      <h1 className={`page-title${!!currentProductionLineId ? (isDefaultLine ? ' page-title--default' : ' page-title--non-default') : ''}`}>
+        Meldingen
+        {activeLineName && (
+          <span className="page-title__production-line">
+            {' — '}{activeLineName}
+            {isDefaultLine && <span className="page-title__default-badge"> (standaard)</span>}
+          </span>
+        )}
+      </h1>
 
       <div className="filter-bar">
         <input
@@ -1447,14 +1459,14 @@ export default function Notifications() {
                     style={{ 
                       minWidth: '80px',
                       textAlign: 'center',
-                      backgroundColor: pl.id === currentProductionLineId ? '#0066cc' : undefined,
+                      backgroundColor: pl.id === currentProductionLineId ? (isDefaultLine ? '#0066cc' : '#d32f2f') : undefined,
                       color: pl.id === currentProductionLineId ? '#fff' : undefined,
                       fontWeight: pl.id === currentProductionLineId ? 'bold' : undefined,
-                      borderLeft: pl.id === currentProductionLineId ? '4px solid #004080' : undefined,
-                      borderRight: pl.id === currentProductionLineId ? '4px solid #004080' : undefined,
-                      borderTop: pl.id === currentProductionLineId ? '4px solid #004080' : undefined,
+                      borderLeft: pl.id === currentProductionLineId ? `4px solid ${isDefaultLine ? '#004080' : '#b71c1c'}` : undefined,
+                      borderRight: pl.id === currentProductionLineId ? `4px solid ${isDefaultLine ? '#004080' : '#b71c1c'}` : undefined,
+                      borderTop: pl.id === currentProductionLineId ? `4px solid ${isDefaultLine ? '#004080' : '#b71c1c'}` : undefined,
                       position: 'relative',
-                      boxShadow: pl.id === currentProductionLineId ? '0 2px 8px rgba(0, 102, 204, 0.3)' : undefined
+                      boxShadow: pl.id === currentProductionLineId ? `0 2px 8px rgba(${isDefaultLine ? '0, 102, 204' : '211, 47, 47'}, 0.3)` : undefined
                     }} 
                     title={pl.name + (pl.id === currentProductionLineId ? ' (actief)' : '')}
                   >
@@ -1672,7 +1684,7 @@ export default function Notifications() {
                           <td 
                             key={pl.id} 
                             onClick={() => toggleExpand(notification.id)} 
-                            className={isActive ? 'pl-col--active' : ''}
+                          className={isActive ? (isDefaultLine ? 'pl-col--active' : 'pl-col--active--non-default') : ''}
                             style={{ textAlign: 'center' }}
                           >
                             <span

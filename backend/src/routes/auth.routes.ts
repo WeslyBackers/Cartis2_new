@@ -55,6 +55,14 @@ router.post('/login', async (req, res) => {
 
     const rights = await getUserRights(user.id);
 
+    // Resolve default production line name (may not be in user rights)
+    const defaultPlFromRights = rights.find((r: any) => r.id === user.default_production_line_id);
+    let defaultProductionLineName: string | null = defaultPlFromRights?.name ?? null;
+    if (!defaultProductionLineName && user.default_production_line_id) {
+      const plResult = await pool.query('SELECT name FROM production_lines WHERE id = $1', [user.default_production_line_id]);
+      if (plResult.rows.length > 0) defaultProductionLineName = plResult.rows[0].name;
+    }
+
     const expiresIn = (process.env.JWT_EXPIRES_IN || '24h') as SignOptions['expiresIn'];
     const token = jwt.sign(
       { id: user.id, email: user.email, productionLineId: user.default_production_line_id },
@@ -70,6 +78,7 @@ router.post('/login', async (req, res) => {
         firstName: user.first_name,
         lastName: user.last_name,
         defaultProductionLineId: user.default_production_line_id,
+        defaultProductionLineName,
         rights,
       },
     });
@@ -96,12 +105,20 @@ router.get('/me', authenticate, async (req: AuthRequest, res) => {
     const user = userResult.rows[0];
     const rights = await getUserRights(user.id);
 
+    const defaultPlFromRights = rights.find((r: any) => r.id === user.default_production_line_id);
+    let defaultProductionLineName: string | null = defaultPlFromRights?.name ?? null;
+    if (!defaultProductionLineName && user.default_production_line_id) {
+      const plResult = await pool.query('SELECT name FROM production_lines WHERE id = $1', [user.default_production_line_id]);
+      if (plResult.rows.length > 0) defaultProductionLineName = plResult.rows[0].name;
+    }
+
     res.json({
       id: user.id,
       email: user.email,
       firstName: user.first_name,
       lastName: user.last_name,
       defaultProductionLineId: user.default_production_line_id,
+      defaultProductionLineName,
       rights,
     });
   } catch (error) {

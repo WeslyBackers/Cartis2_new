@@ -1,6 +1,7 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { useEffect, useState } from 'react';
+import api from '../services/api';
 import './Layout.css';
 
 type ThemeMode = 'light' | 'dark';
@@ -22,9 +23,14 @@ function getInitialTheme(): ThemeMode {
 
 export default function Layout() {
   const navigate = useNavigate();
-  const { user, currentProductionLineId, setCurrentProductionLine, logout } = useAuthStore();
+  const { user, currentProductionLineId, setCurrentProductionLine, setUser, logout } = useAuthStore();
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
   const [theme, setTheme] = useState<ThemeMode>(() => getInitialTheme());
+
+  // Refresh user data on mount so defaultProductionLineName (and rights) are always up to date
+  useEffect(() => {
+    api.get('/auth/me').then((res) => setUser(res.data)).catch(() => {/* ignore */});
+  }, []);
 
   // Use the production lines the user has rights to (already available from login)
   const productionLines = user?.rights ?? [];
@@ -65,10 +71,20 @@ export default function Layout() {
               <option value="">-- Selecteer --</option>
               {productionLines?.map((pl: any) => (
                 <option key={pl.id} value={pl.id}>
-                  {pl.name} ({pl.code})
+                  {pl.name} ({pl.code}){Number(pl.id) === Number(user?.defaultProductionLineId) ? ' — standaard' : ''}
                 </option>
               ))}
             </select>
+            {user?.defaultProductionLineId && currentProductionLineId !== user.defaultProductionLineId && productionLines.some((pl: any) => Number(pl.id) === Number(user.defaultProductionLineId)) && (
+              <button
+                type="button"
+                className="production-line-default-btn"
+                onClick={() => setCurrentProductionLine(user.defaultProductionLineId)}
+                title="Terug naar standaard productielijn"
+              >
+                ↩ Standaard
+              </button>
+            )}
             {!currentProductionLineId && (
               <span className="production-line-warning">
                 Selecteer een productielijn
@@ -86,7 +102,7 @@ export default function Layout() {
             >
               {theme === 'dark' ? 'Light mode' : 'Dark mode'}
             </button>
-            <span>{user?.firstName} {user?.lastName}</span>
+            <span className="user-name-pill">{user?.firstName} {user?.lastName}</span>
             <button onClick={handleLogout}>Uitloggen</button>
           </div>
         </div>
