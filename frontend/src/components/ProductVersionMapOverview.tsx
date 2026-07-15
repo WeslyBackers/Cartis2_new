@@ -1,12 +1,40 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   MapContainer,
   TileLayer,
   GeoJSON,
   useMap,
+  WMSTileLayer,
 } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+
+const WMS_URL = 'https://gis.afdelingkust.be/ows';
+const WMS_LAYERS = [
+  { name: 'nautischPortaal:Militaire.zones', title: 'Militaire zones' },
+  { name: 'nautischPortaal:Offshore.zones', title: 'Offshore zones' },
+  { name: 'nautischPortaal:Verkeersscheidingsstelsel', title: 'Verkeersscheidingsstelsel' },
+  { name: 'nautischPortaal:Akoestische.referentiezone', title: 'Akoestische referentiezone' },
+  { name: 'nautischPortaal:Ankergebieden', title: 'Ankergebieden' },
+  { name: 'nautischPortaal:Baggergeulen', title: 'Baggergeulen' },
+  { name: 'nautischPortaal:Baggerstortvakken', title: 'Baggerstortvakken' },
+  { name: 'nautischPortaal:Boeien', title: 'Boeien' },
+  { name: 'nautischPortaal:Combined.Bathy.Grid', title: 'Combined Bathymetry Grid' },
+  { name: 'nautischPortaal:Geografische.namen', title: 'Geografische namen' },
+  { name: 'nautischPortaal:Herkenningspunten', title: 'Herkenningspunten' },
+  { name: 'nautischPortaal:Internationale.Maritieme.Grens', title: 'Internationale Maritieme Grens' },
+  { name: 'nautischPortaal:Kustlijn', title: 'Kustlijn' },
+  { name: 'nautischPortaal:Lichten', title: 'Lichten' },
+  { name: 'nautischPortaal:MG.12-mijlsgrens', title: 'MG 12-mijlsgrens' },
+  { name: 'nautischPortaal:MG.200-metergrens', title: 'MG 200-metergrens' },
+  { name: 'nautischPortaal:MG.24-mijlsgrens', title: 'MG 24-mijlsgrens' },
+  { name: 'nautischPortaal:MG.3-mijlsgrens', title: 'MG 3-mijlsgrens' },
+  { name: 'nautischPortaal:MG.6-mijlsgrens', title: 'MG 6-mijlsgrens' },
+  { name: 'nautischPortaal:MG.basislijn', title: 'MG Basislijn' },
+  { name: 'nautischPortaal:Natuurbeschermingsgebieden', title: 'Natuurbeschermingsgebieden' },
+  { name: 'nautischPortaal:Wrakken.Obstructies', title: 'Wrakken & Obstructies' },
+  { name: 'nautischPortaal:Zand-grind.ontginningsgebieden', title: 'Zand-grind ontginningsgebieden' },
+];
 
 interface ProductVersionMapOverviewProps {
   selectedVersion: any;
@@ -314,6 +342,15 @@ export function ProductVersionMapOverview({
   const mapHeight = isExpanded ? 'calc(100vh - 200px)' : '400px';
   const hasGeometries = productGeometries.length > 0 || noticeGeometries.length > 0;
 
+  const [selectedWmsLayers, setSelectedWmsLayers] = useState<string[]>([]);
+  const [wmsLayersPanelOpen, setWmsLayersPanelOpen] = useState(false);
+
+  const toggleWmsLayer = (layerName: string) => {
+    setSelectedWmsLayers(prev =>
+      prev.includes(layerName) ? prev.filter(l => l !== layerName) : [...prev, layerName]
+    );
+  };
+
   if (!hasGeometries) {
     return (
       <div
@@ -333,6 +370,37 @@ export function ProductVersionMapOverview({
 
   return (
     <div style={{ marginBottom: '1rem' }}>
+      {/* WMS Layers Panel */}
+      <div style={{ marginBottom: '0.5rem', padding: '0.75rem', backgroundColor: '#f8f9fa', borderRadius: '6px', border: '1px solid #dee2e6' }}>
+        <div
+          style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', userSelect: 'none' }}
+          onClick={() => setWmsLayersPanelOpen(prev => !prev)}
+        >
+          <div style={{ fontSize: '0.875rem', fontWeight: 600, color: '#495057' }}>
+            🛰️ Nautisch Portaal lagen
+            {selectedWmsLayers.length > 0 && (
+              <span style={{ marginLeft: '0.5rem', color: '#0d6efd', fontWeight: 'normal' }}>({selectedWmsLayers.length} actief)</span>
+            )}
+          </div>
+          <div style={{ fontSize: '0.8rem', color: '#6c757d' }}>{wmsLayersPanelOpen ? '▲ Verbergen' : '▼ Tonen'}</div>
+        </div>
+        {wmsLayersPanelOpen && (
+          <div style={{ marginTop: '0.75rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '0.4rem 1rem' }}>
+            {WMS_LAYERS.map(layer => (
+              <label key={layer.name} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem', color: '#495057' }}>
+                <input
+                  type="checkbox"
+                  checked={selectedWmsLayers.includes(layer.name)}
+                  onChange={() => toggleWmsLayer(layer.name)}
+                  style={{ cursor: 'pointer' }}
+                />
+                {layer.title}
+              </label>
+            ))}
+          </div>
+        )}
+      </div>
+
       <div
         style={{
           height: mapHeight,
@@ -353,6 +421,19 @@ export function ProductVersionMapOverview({
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           />
+
+          {/* Nautisch Portaal WMS layers */}
+          {selectedWmsLayers.map(layerName => (
+            <WMSTileLayer
+              key={layerName}
+              url={WMS_URL}
+              layers={layerName}
+              format="image/png"
+              transparent={true}
+              version="1.3.0"
+              attribution="&copy; Afdeling Kust"
+            />
+          ))}
 
           {/* Product Geometry */}
           {productGeometries.map((geometry, idx) => (
