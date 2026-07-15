@@ -28,6 +28,14 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(morgan('dev'));
 
+// Debug middleware to log incoming requests on Vercel
+if (process.env.VERCEL) {
+  app.use((req, _res, next) => {
+    console.log('[Vercel Debug]', req.method, req.path, req.url);
+    next();
+  });
+}
+
 // Static files (uploads) — only if folder exists (not available on Vercel)
 const uploadsPath = path.join(__dirname, '../uploads');
 if (fs.existsSync(uploadsPath)) {
@@ -49,17 +57,15 @@ app.get('/', (_req: Request, res: Response) => {
 });
 
 // API Routes
-// On Vercel, the /api prefix is already handled by the rewrite rule
-const routePrefix = process.env.VERCEL ? '' : '/api';
-app.use(`${routePrefix}/auth`, authRoutes);
-app.use(`${routePrefix}/notifications`, notificationRoutes);
-app.use(`${routePrefix}/tasks`, taskRoutes);
-app.use(`${routePrefix}/products`, productRoutes);
-app.use(`${routePrefix}/product-versions`, productVersionRoutes);
-app.use(`${routePrefix}/production-lines`, productionLineRoutes);
-app.use(`${routePrefix}/users`, userRoutes);
-app.use(`${routePrefix}/coverages`, coverageRoutes);
-app.use(`${routePrefix}/notes`, noteRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/tasks', taskRoutes);
+app.use('/api/products', productRoutes);
+app.use('/api/product-versions', productVersionRoutes);
+app.use('/api/production-lines', productionLineRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/coverages', coverageRoutes);
+app.use('/api/notes', noteRoutes);
 
 // Serve frontend static files in production (Replit, etc.)
 if (process.env.NODE_ENV === 'production') {
