@@ -99,3 +99,41 @@ ORDER BY u.last_name, u.first_name;
 -- 4. VERIFY: re-run query 1 — it should now return zero rows (except users
 --    listed in query 3, which need rights granted manually).
 -- ---------------------------------------------------------------------------
+
+-- ---------------------------------------------------------------------------
+-- 5. FIX: "Geen bewerkrechten" on note creation for VIEW-ONLY users.
+--
+--    The current deployed backend requires can_edit = true on every
+--    production line that is included in a new or updated note.  Users who
+--    have can_view = true but can_edit = false therefore cannot save notes
+--    for their own production line even though the UI lets them try.
+--
+--    This section grants can_edit on every row where can_view is already
+--    true so those users can create and edit notes immediately, without
+--    waiting for a backend redeploy.
+--
+--    NOTE: Once the backend code fix is deployed (note.routes.ts no longer
+--    checks can_edit for note creation), you may set can_edit back to false
+--    for purely view-only users if that matches your intended permissions.
+-- ---------------------------------------------------------------------------
+
+-- 5a. AUDIT: see who is affected
+SELECT
+  u.email,
+  u.first_name,
+  u.last_name,
+  pl.code AS production_line_code,
+  r.can_view,
+  r.can_edit
+FROM user_production_line_rights r
+JOIN users u  ON u.id  = r.user_id
+JOIN production_lines pl ON pl.id = r.production_line_id
+WHERE r.can_view = true
+  AND r.can_edit = false
+ORDER BY u.last_name, u.first_name, pl.code;
+
+-- 5b. FIX: grant can_edit wherever can_view is already granted
+UPDATE user_production_line_rights
+SET can_edit = true
+WHERE can_view = true
+  AND can_edit = false;
