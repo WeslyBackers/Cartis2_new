@@ -118,7 +118,6 @@ export default function PublishedProductVersions() {
   const currentProductionLineId = useAuthStore((state) => state.currentProductionLineId);
   const user = useAuthStore((state) => state.user);
   const activeLineName = user?.rights?.find((r) => Number(r.id) === Number(currentProductionLineId))?.name;
-  const defaultLineName = user?.defaultProductionLineName ?? null;
   const isDefaultLine = Number(currentProductionLineId) === Number(user?.defaultProductionLineId);
 
   useEffect(() => {

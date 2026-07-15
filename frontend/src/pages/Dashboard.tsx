@@ -46,7 +46,6 @@ export default function Dashboard() {
   const currentProductionLineId = useAuthStore((state) => state.currentProductionLineId);
   const user = useAuthStore((state) => state.user);
   const isDefaultLine = currentProductionLineId ? Number(currentProductionLineId) === Number(user?.defaultProductionLineId) : true;
-  const activeLineName = currentProductionLineId ? user?.rights?.find((r: any) => Number(r.id) === Number(currentProductionLineId))?.name : null;
   const [isCreateNoteOpen, setIsCreateNoteOpen] = useState(false);
   const [editingNoteId, setEditingNoteId] = useState<number | null>(null);
   const [noteContent, setNoteContent] = useState('');
@@ -80,10 +79,6 @@ export default function Dashboard() {
     },
     enabled: !!currentProductionLineId,
   });
-
-  const readableProductionLines = useMemo(() => {
-    return (user?.rights || []).filter((right) => right.can_view);
-  }, [user]);
 
   const editableProductionLineIds = useMemo(() => {
     return new Set(
@@ -319,9 +314,6 @@ export default function Dashboard() {
         Dashboard
         {currentProductionLineId && (() => {
           const activeLine = user?.rights?.find((r) => Number(r.id) === Number(currentProductionLineId));
-          const defaultLine = user?.defaultProductionLineName
-            ? { name: user.defaultProductionLineName }
-            : null;
           const isDefault = Number(currentProductionLineId) === Number(user?.defaultProductionLineId);
           return activeLine ? (
             <span className="page-title__production-line">
