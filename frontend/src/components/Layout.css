@@ -94,6 +94,7 @@
   font-size: 0.8125rem;
   font-weight: 500;
   color: var(--color-text-secondary);
+  background-color: var(--color-bg-s);
 }
 
 .user-info .user-name-pill {
