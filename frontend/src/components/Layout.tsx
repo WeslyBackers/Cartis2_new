@@ -102,7 +102,7 @@ export default function Layout() {
             >
               {theme === 'dark' ? 'Light mode' : 'Dark mode'}
             </button>
-            <span>{user?.firstName} {user?.lastName}</span>
+            <span className="user-name-pill">{user?.firstName} {user?.lastName}</span>
             <button onClick={handleLogout}>Uitloggen</button>
           </div>
         </div>
