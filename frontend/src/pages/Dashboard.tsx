@@ -45,7 +45,6 @@ export default function Dashboard() {
   const queryClient = useQueryClient();
   const currentProductionLineId = useAuthStore((state) => state.currentProductionLineId);
   const user = useAuthStore((state) => state.user);
-  const setUser = useAuthStore((state) => state.setUser);
   const isDefaultLine = currentProductionLineId ? Number(currentProductionLineId) === Number(user?.defaultProductionLineId) : true;
   const activeLineName = currentProductionLineId ? user?.rights?.find((r: any) => Number(r.id) === Number(currentProductionLineId))?.name : null;
   const [isCreateNoteOpen, setIsCreateNoteOpen] = useState(false);
@@ -93,6 +92,15 @@ export default function Dashboard() {
         .map((right) => Number(right.id))
     );
   }, [user]);
+
+  const { data: allProductionLines = [] } = useQuery({
+    queryKey: ['allProductionLines'],
+    queryFn: async () => {
+      const response = await api.get('/production-lines');
+      return response.data as { id: number; code: string; name: string }[];
+    },
+    enabled: !!user,
+  });
 
   const { data: notes, isLoading: isLoadingNotes } = useQuery({
     queryKey: ['dashboardNotes', currentProductionLineId],
@@ -202,31 +210,12 @@ export default function Dashboard() {
     },
   });
 
-  const openCreateNote = async () => {
-    // Rights can change server-side (e.g. an admin fixes a user's production
-    // line rights) without the current browser session being refreshed, since
-    // the auth store persists the user/rights across page loads. Refresh from
-    // /auth/me here so we never preselect lines based on stale cached rights.
-    let latestRights = user?.rights || [];
-    try {
-      const response = await api.get('/auth/me');
-      setUser(response.data);
-      latestRights = response.data?.rights || [];
-    } catch {
-      // Ignore refresh failures and fall back to the currently cached rights.
-    }
-
-    const latestEditableIds = new Set(
-      latestRights.filter((r: any) => r.can_edit).map((r: any) => Number(r.id))
-    );
-
-    // Default to the currently logged-in production line only, so that a note
-    // created without touching the line checkboxes is scoped to that single
-    // line. Only fall back to every editable line when no line is active at
-    // all (e.g. right after login before one is selected).
+  const openCreateNote = () => {
+    // Default to the current production line; fall back to all lines when
+    // no production line is active (e.g. right after first login).
     const defaultSelection = currentProductionLineId
       ? [Number(currentProductionLineId)]
-      : Array.from(latestEditableIds);
+      : allProductionLines.map((l) => Number(l.id));
 
     setSelectedLineIds(defaultSelection);
     setEditingNoteId(null);
@@ -264,7 +253,9 @@ export default function Dashboard() {
     // standard/default production line instead of blocking the save.
     const effectiveLineIds = selectedLineIds.length > 0
       ? selectedLineIds
-      : (user?.defaultProductionLineId ? [Number(user.defaultProductionLineId)] : []);
+      : (currentProductionLineId
+          ? [Number(currentProductionLineId)]
+          : allProductionLines.map((l) => Number(l.id)));
 
     if (effectiveLineIds.length === 0) {
       alert('Selecteer minstens een productielijn die de nota mag lezen.');
@@ -586,7 +577,7 @@ export default function Dashboard() {
             <div style={{ marginBottom: '0.75rem' }}>
               <div style={{ fontWeight: 600, marginBottom: '0.45rem' }}>Leesbaar voor productielijnen</div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.6rem' }}>
-                {readableProductionLines.map((line) => (
+                {allProductionLines.map((line) => (
                   <label
                     key={`line-${line.id}`}
                     style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '0.35rem 0.55rem', border: '1px solid #dee2e6', borderRadius: '999px', cursor: 'pointer' }}
