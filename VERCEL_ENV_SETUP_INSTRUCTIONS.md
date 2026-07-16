@@ -21,6 +21,7 @@ You're getting: `ENOENT: no such file or directory, mkdir '/var/task/backend/upl
    | `SUPABASE_SECRET_KEY` | `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhub3VpZ2x3aXlodmNjYmVqdmluIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mjk4ODU3MCwiZXhwIjoyMDk4NTY0NTcwfQ.w4DIMTf7NJY2UUyic8Dh-Kqy0QbDjssG74PL86t1iV4` |
    | `DATABASE_URL` | `postgresql://postgres.xnouiglwiyhvccbejvin:WesBac301078*@aws-0-eu-west-1.pooler.supabase.com:6543/postgres` |
    | `JWT_SECRET` | `d8a4d50b7eb558f5015d33da9aae8f7140055ec6baaf82a35436f902acac38fd` |
+   | `MAX_FILE_SIZE` | `52428800` (50 MB - for CAD/GIS files) |
 
 3. **For each variable, select**: 
    - ✅ Production
