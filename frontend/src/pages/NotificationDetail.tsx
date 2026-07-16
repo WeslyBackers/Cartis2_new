@@ -1694,7 +1694,8 @@ export default function NotificationDetail() {
               <FileUpload 
                 onUpload={(file) => uploadMutation.mutate(file)}
                 disabled={uploadMutation.isPending}
-                maxSize={10485760} // 10MB
+                accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.csv,.xml,.jpg,.jpeg,.png,.gif,.bmp,.tiff,.tif,.zip,.7z,.rar,.dwg,.dxf,.dwf,.dgn,.shp,.shx,.dbf,.prj,.sbn,.sbx,.cpg,.geojson,.gml,.kml,.kmz,.gpx"
+                maxSize={52428800} // 50MB (increased for CAD/GIS files)
               />
               {uploadMutation.isPending && (
                 <div style={{ marginTop: '0.75rem', padding: '0.75rem', backgroundColor: '#fff3cd', borderRadius: '4px', color: '#856404', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>

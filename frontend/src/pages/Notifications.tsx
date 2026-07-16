@@ -1975,8 +1975,8 @@ export default function Notifications() {
                 </label>
                 <FileUpload
                   onUpload={(file) => setNewNotificationAttachments(prev => [...prev, file])}
-                  accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.csv,.xml,.jpg,.jpeg,.png,.gif,.bmp,.tiff,.zip"
-                  maxSize={10485760}
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.csv,.xml,.jpg,.jpeg,.png,.gif,.bmp,.tiff,.tif,.zip,.7z,.rar,.dwg,.dxf,.dwf,.dgn,.shp,.shx,.dbf,.prj,.sbn,.sbx,.cpg,.geojson,.gml,.kml,.kmz,.gpx"
+                  maxSize={52428800}
                 />
                 {newNotificationAttachments.length > 0 && (
                   <div style={{ marginTop: '0.75rem' }}>

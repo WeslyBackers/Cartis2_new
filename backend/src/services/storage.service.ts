@@ -64,7 +64,7 @@ export async function saveFile(
         console.log(`[saveFile] Creating bucket: ${BUCKET}`);
         const { error: createError } = await supabase.storage.createBucket(BUCKET, {
           public: false,
-          fileSizeLimit: 10485760, // 10MB
+          fileSizeLimit: 52428800, // 50MB
         });
         if (createError && !createError.message.includes('already exists')) {
           console.error('[saveFile] Failed to create bucket:', createError);

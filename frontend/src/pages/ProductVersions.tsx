@@ -1363,6 +1363,7 @@ export default function ProductVersions() {
             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
               <input
                 type="file"
+                accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.csv,.xml,.jpg,.jpeg,.png,.gif,.bmp,.tiff,.tif,.zip,.7z,.rar,.dwg,.dxf,.dwf,.dgn,.shp,.shx,.dbf,.prj,.sbn,.sbx,.cpg,.geojson,.gml,.kml,.kmz,.gpx"
                 onChange={(e) => setAttachmentFile(e.target.files?.[0] || null)}
                 disabled={uploadAttachmentMutation.isPending}
               />

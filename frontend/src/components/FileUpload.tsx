@@ -10,7 +10,7 @@ interface FileUploadProps {
 export default function FileUpload({ 
   onUpload, 
   accept = '*/*',
-  maxSize = 10485760, // 10MB default
+  maxSize = 52428800, // 50MB default (increased for CAD/GIS files)
   disabled = false 
 }: FileUploadProps) {
   const [isDragging, setIsDragging] = useState(false);
@@ -128,7 +128,7 @@ export default function FileUpload({
           Max: {(maxSize / 1024 / 1024).toFixed(1)} MB
         </div>
         <div style={{ color: '#6c757d', fontSize: '0.75rem', marginTop: '0.15rem' }}>
-          PDF, Word, Excel, Afbeeldingen, ZIP
+          PDF, Word, Excel, Afbeeldingen, CAD (DWG/DXF), GIS (SHP), ZIP
         </div>
       </div>
     </div>

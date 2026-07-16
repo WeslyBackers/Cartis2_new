@@ -51,7 +51,7 @@ async function setupStorage() {
       
       const { data, error: createError } = await supabase.storage.createBucket('attachments', {
         public: false,
-        fileSizeLimit: 10485760, // 10MB
+        fileSizeLimit: 52428800, // 50MB
       });
       
       if (createError) {
