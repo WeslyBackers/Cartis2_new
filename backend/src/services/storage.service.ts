@@ -43,41 +43,67 @@ export async function saveFile(
 
   if (useSupabase()) {
     console.log(`[saveFile] Using Supabase storage, bucket: ${BUCKET}`);
+    console.log(`[saveFile] Supabase URL: ${process.env.SUPABASE_URL}`);
+    console.log(`[saveFile] Has Supabase key: ${Boolean(process.env.SUPABASE_SECRET_KEY)}`);
+    
     const storagePath = `${folder}/${uniqueFilename}`;
     
     // Ensure bucket exists
-    const { data: buckets, error: listError } = await supabase.storage.listBuckets();
-    if (listError) {
-      console.error('[saveFile] Failed to list buckets:', listError);
-      throw new Error(`Failed to access Supabase storage: ${listError.message}`);
-    }
-    
-    const bucketExists = buckets?.some(b => b.name === BUCKET);
-    
-    if (!bucketExists) {
-      console.log(`[saveFile] Creating bucket: ${BUCKET}`);
-      const { error: createError } = await supabase.storage.createBucket(BUCKET, {
-        public: false,
-        fileSizeLimit: 10485760, // 10MB
-      });
-      if (createError && !createError.message.includes('already exists')) {
-        console.error('[saveFile] Failed to create bucket:', createError);
-        throw new Error(`Failed to create storage bucket: ${createError.message}`);
+    try {
+      const { data: buckets, error: listError } = await supabase.storage.listBuckets();
+      if (listError) {
+        console.error('[saveFile] Failed to list buckets:', listError);
+        console.error('[saveFile] List buckets error details:', JSON.stringify(listError, null, 2));
+        throw new Error(`Failed to access Supabase storage: ${listError.message || 'Unknown error'}`);
       }
+      console.log(`[saveFile] Found ${buckets?.length || 0} buckets`);
+      
+      const bucketExists = buckets?.some(b => b.name === BUCKET);
+      
+      if (!bucketExists) {
+        console.log(`[saveFile] Creating bucket: ${BUCKET}`);
+        const { error: createError } = await supabase.storage.createBucket(BUCKET, {
+          public: false,
+          fileSizeLimit: 10485760, // 10MB
+        });
+        if (createError && !createError.message.includes('already exists')) {
+          console.error('[saveFile] Failed to create bucket:', createError);
+          console.error('[saveFile] Create bucket error details:', JSON.stringify(createError, null, 2));
+          throw new Error(`Failed to create storage bucket: ${createError.message}`);
+        }
+      } else {
+        console.log(`[saveFile] Bucket "${BUCKET}" already exists`);
+      }
+      
+      console.log(`[saveFile] Uploading to Supabase: ${storagePath}, size: ${buffer.length} bytes`);
+      const { error } = await supabase.storage.from(BUCKET).upload(storagePath, buffer, {
+        contentType: mimetype,
+        upsert: false,
+      });
+      
+      if (error) {
+        console.error('[saveFile] Supabase upload failed:', error);
+        console.error('[saveFile] Upload error details:', JSON.stringify(error, null, 2));
+        throw new Error(`Supabase upload failed: ${error.message || 'Unknown error'}`);
+      }
+      
+      console.log(`[saveFile] Successfully uploaded to Supabase: ${storagePath}`);
+      return storagePath;
+    } catch (networkError: any) {
+      console.error('[saveFile] Network/connection error:', networkError);
+      console.error('[saveFile] Error stack:', networkError?.stack);
+      
+      // Provide more helpful error message
+      const errorMsg = networkError?.message || String(networkError);
+      if (errorMsg.includes('fetch failed') || errorMsg.includes('ECONNREFUSED') || errorMsg.includes('ETIMEDOUT')) {
+        throw new Error(
+          'Cannot connect to Supabase Storage. ' +
+          'This may be due to network issues, firewall, or incorrect credentials. ' +
+          `Original error: ${errorMsg}`
+        );
+      }
+      throw networkError;
     }
-    
-    console.log(`[saveFile] Uploading to Supabase: ${storagePath}`);
-    const { error } = await supabase.storage.from(BUCKET).upload(storagePath, buffer, {
-      contentType: mimetype,
-      upsert: false,
-    });
-    if (error) {
-      console.error('[saveFile] Supabase upload failed:', error);
-      throw new Error(`Supabase upload failed: ${error.message}`);
-    }
-    
-    console.log(`[saveFile] Successfully uploaded to Supabase: ${storagePath}`);
-    return storagePath;
   }
 
   // Local disk fallback (development only)

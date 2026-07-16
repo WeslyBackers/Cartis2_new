@@ -7,14 +7,24 @@ dotenv.config();
 // certificate, causing SELF_SIGNED_CERT_IN_CHAIN errors.
 // Use undici (built into Node.js 18+) with rejectUnauthorized: false.
 let customFetch: typeof fetch = globalThis.fetch;
-try {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { Agent } = require('undici') as typeof import('undici');
-  const agent = new Agent({ connect: { rejectUnauthorized: false } });
-  customFetch = (input: any, init: any = {}) =>
-    (globalThis.fetch as any)(input, { ...init, dispatcher: agent });
-} catch {
-  // undici unavailable — fall back to default fetch
+
+// Only use custom fetch in non-Vercel environments
+const isVercel = process.env.VERCEL === '1' || process.env.VERCEL_ENV;
+
+if (!isVercel) {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { Agent } = require('undici') as typeof import('undici');
+    const agent = new Agent({ connect: { rejectUnauthorized: false } });
+    customFetch = (input: any, init: any = {}) =>
+      (globalThis.fetch as any)(input, { ...init, dispatcher: agent });
+    console.log('[Supabase] Using custom fetch with undici agent (SSL verification disabled)');
+  } catch (err) {
+    // undici unavailable — fall back to default fetch
+    console.log('[Supabase] Using default fetch (undici not available)');
+  }
+} else {
+  console.log('[Supabase] Running on Vercel, using default fetch');
 }
 
 // Lazy singleton — created on first use so missing env vars don't crash startup
@@ -26,6 +36,11 @@ function getSupabaseClient(): SupabaseClient {
 
   const supabaseUrl = process.env.SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SECRET_KEY;
+
+  console.log('[Supabase] Initializing client...');
+  console.log('[Supabase] URL configured:', Boolean(supabaseUrl));
+  console.log('[Supabase] Key configured:', Boolean(supabaseKey));
+  console.log('[Supabase] URL value:', supabaseUrl?.substring(0, 30) + '...');
 
   if (!supabaseUrl || !supabaseKey) {
     throw new Error('SUPABASE_URL and SUPABASE_SECRET_KEY must be set in environment');
@@ -42,6 +57,7 @@ function getSupabaseClient(): SupabaseClient {
     },
   });
 
+  console.log('[Supabase] Client initialized successfully');
   return _supabase;
 }
 
