@@ -33,6 +33,22 @@ export async function saveFile(
 
   if (useSupabase()) {
     const storagePath = `${folder}/${uniqueFilename}`;
+    
+    // Ensure bucket exists
+    const { data: buckets } = await supabase.storage.listBuckets();
+    const bucketExists = buckets?.some(b => b.name === BUCKET);
+    
+    if (!bucketExists) {
+      const { error: createError } = await supabase.storage.createBucket(BUCKET, {
+        public: false,
+        fileSizeLimit: 10485760, // 10MB
+      });
+      if (createError && !createError.message.includes('already exists')) {
+        console.error('Failed to create bucket:', createError);
+        throw new Error(`Failed to create storage bucket: ${createError.message}`);
+      }
+    }
+    
     const { error } = await supabase.storage.from(BUCKET).upload(storagePath, buffer, {
       contentType: mimetype,
       upsert: false,
@@ -42,10 +58,19 @@ export async function saveFile(
   }
 
   // Local disk fallback (development)
-  const uploadDir = path.resolve(__dirname, '../../../uploads');
-  if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+  // Use UPLOAD_PATH from env or default to backend/uploads
+  const uploadDir = process.env.UPLOAD_PATH 
+    ? path.resolve(process.env.UPLOAD_PATH)
+    : path.resolve(__dirname, '../../uploads'); // backend/dist/services -> backend/uploads
+  
+  if (!fs.existsSync(uploadDir)) {
+    console.log(`Creating uploads directory: ${uploadDir}`);
+    fs.mkdirSync(uploadDir, { recursive: true });
+  }
+  
   const localPath = path.join(uploadDir, uniqueFilename);
   fs.writeFileSync(localPath, buffer);
+  console.log(`File saved locally to: ${localPath}`);
   return localPath;
 }
 

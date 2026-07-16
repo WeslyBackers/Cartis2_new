@@ -1945,7 +1945,10 @@ router.post('/:id/attachments', authenticate, upload.single('file'), async (req:
     const userId = req.user?.id;
     const file = req.file;
 
+    console.log(`[Upload attachment] Notification ID: ${id}, File: ${file?.originalname}, Size: ${file?.size}, Type: ${file?.mimetype}`);
+
     if (!file) {
+      console.error('[Upload attachment] No file uploaded');
       return res.status(400).json({ error: 'Geen bestand geüpload' });
     }
 
@@ -1956,10 +1959,13 @@ router.post('/:id/attachments', authenticate, upload.single('file'), async (req:
     );
 
     if (notificationCheck.rows.length === 0) {
+      console.error(`[Upload attachment] Notification ${id} not found`);
       return res.status(404).json({ error: 'Melding niet gevonden' });
     }
 
+    console.log(`[Upload attachment] Saving file to storage...`);
     const storagePath = await saveFile(file.buffer, file.mimetype, file.originalname, `notifications/${id}`);
+    console.log(`[Upload attachment] File saved to: ${storagePath}`);
 
     // Store attachment metadata in database
     const result = await pool.query(
@@ -1976,9 +1982,11 @@ router.post('/:id/attachments', authenticate, upload.single('file'), async (req:
       ['notification', id, 'attachment_added', JSON.stringify({ filename: file.originalname }), userId]
     );
 
+    console.log(`[Upload attachment] Success! Attachment ID: ${result.rows[0].id}`);
     res.status(201).json(result.rows[0]);
   } catch (error: any) {
-    console.error('Upload attachment error:', error);
+    console.error('[Upload attachment] Error:', error);
+    console.error('[Upload attachment] Error stack:', error?.stack);
     const message = error?.message || 'Internal server error';
     res.status(500).json({ error: message });
   }
