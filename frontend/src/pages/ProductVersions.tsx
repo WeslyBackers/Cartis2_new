@@ -1468,7 +1468,8 @@ export default function ProductVersions() {
                       }}>
                         <div style={{
                           flex: 1,
-                          overflow: 'hidden',
+                          overflow: 'auto',
+                          padding: '0.75rem',
                         }}>
                           <ProductVersionMapOverview
                             selectedVersion={selectedVersion}

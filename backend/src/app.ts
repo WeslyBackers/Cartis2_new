@@ -56,6 +56,23 @@ app.get('/', (_req: Request, res: Response) => {
   });
 });
 
+// Debug endpoint to show all registered routes
+app.get('/api/debug-routes', (_req: Request, res: Response) => {
+  const routes: string[] = [];
+  app._router.stack.forEach((middleware: any) => {
+    if (middleware.route) {
+      routes.push(`${Object.keys(middleware.route.methods)} ${middleware.route.path}`);
+    } else if (middleware.name === 'router') {
+      middleware.handle.stack.forEach((handler: any) => {
+        if (handler.route) {
+          routes.push(`${Object.keys(handler.route.methods)} ${handler.route.path}`);
+        }
+      });
+    }
+  });
+  res.json({ routes, vercel: !!process.env.VERCEL });
+});
+
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/notifications', notificationRoutes);
