@@ -31,47 +31,87 @@ export async function saveFile(
   const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
   const uniqueFilename = `${nameWithoutExt}-${uniqueSuffix}${ext}`;
 
+  const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL === '1';
+  
+  // In production (Vercel), Supabase is required
+  if (isProduction && !useSupabase()) {
+    throw new Error(
+      'File uploads require Supabase Storage in production. ' +
+      'Please configure SUPABASE_URL and SUPABASE_SECRET_KEY environment variables in Vercel dashboard.'
+    );
+  }
+
   if (useSupabase()) {
+    console.log(`[saveFile] Using Supabase storage, bucket: ${BUCKET}`);
     const storagePath = `${folder}/${uniqueFilename}`;
     
     // Ensure bucket exists
-    const { data: buckets } = await supabase.storage.listBuckets();
+    const { data: buckets, error: listError } = await supabase.storage.listBuckets();
+    if (listError) {
+      console.error('[saveFile] Failed to list buckets:', listError);
+      throw new Error(`Failed to access Supabase storage: ${listError.message}`);
+    }
+    
     const bucketExists = buckets?.some(b => b.name === BUCKET);
     
     if (!bucketExists) {
+      console.log(`[saveFile] Creating bucket: ${BUCKET}`);
       const { error: createError } = await supabase.storage.createBucket(BUCKET, {
         public: false,
         fileSizeLimit: 10485760, // 10MB
       });
       if (createError && !createError.message.includes('already exists')) {
-        console.error('Failed to create bucket:', createError);
+        console.error('[saveFile] Failed to create bucket:', createError);
         throw new Error(`Failed to create storage bucket: ${createError.message}`);
       }
     }
     
+    console.log(`[saveFile] Uploading to Supabase: ${storagePath}`);
     const { error } = await supabase.storage.from(BUCKET).upload(storagePath, buffer, {
       contentType: mimetype,
       upsert: false,
     });
-    if (error) throw new Error(`Supabase upload failed: ${error.message}`);
+    if (error) {
+      console.error('[saveFile] Supabase upload failed:', error);
+      throw new Error(`Supabase upload failed: ${error.message}`);
+    }
+    
+    console.log(`[saveFile] Successfully uploaded to Supabase: ${storagePath}`);
     return storagePath;
   }
 
-  // Local disk fallback (development)
-  // Use UPLOAD_PATH from env or default to backend/uploads
-  const uploadDir = process.env.UPLOAD_PATH 
-    ? path.resolve(process.env.UPLOAD_PATH)
-    : path.resolve(__dirname, '../../uploads'); // backend/dist/services -> backend/uploads
+  // Local disk fallback (development only)
+  console.log('[saveFile] Using local disk storage (development mode)');
   
-  if (!fs.existsSync(uploadDir)) {
-    console.log(`Creating uploads directory: ${uploadDir}`);
-    fs.mkdirSync(uploadDir, { recursive: true });
+  // On Vercel/production, local storage won't work
+  if (isProduction) {
+    throw new Error(
+      'Local disk storage is not available in production. ' +
+      'Configure Supabase Storage credentials.'
+    );
   }
   
-  const localPath = path.join(uploadDir, uniqueFilename);
-  fs.writeFileSync(localPath, buffer);
-  console.log(`File saved locally to: ${localPath}`);
-  return localPath;
+  const uploadDir = process.env.UPLOAD_PATH 
+    ? path.resolve(process.env.UPLOAD_PATH)
+    : path.resolve(__dirname, '../../uploads');
+  
+  try {
+    if (!fs.existsSync(uploadDir)) {
+      console.log(`[saveFile] Creating uploads directory: ${uploadDir}`);
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    
+    const localPath = path.join(uploadDir, uniqueFilename);
+    fs.writeFileSync(localPath, buffer);
+    console.log(`[saveFile] File saved locally to: ${localPath}`);
+    return localPath;
+  } catch (error: any) {
+    console.error('[saveFile] Failed to save file locally:', error);
+    throw new Error(
+      `Failed to save file locally: ${error.message}. ` +
+      'In production, use Supabase Storage instead.'
+    );
+  }
 }
 
 /**
