@@ -1164,6 +1164,24 @@ export default function NotificationDetail() {
       const firstGeometry = mainGeometries[0];
       zoom = firstGeometry?.type === 'Point' ? 12 : 10;
     }
+  } else if (coordinates && coordinates.length > 0) {
+    // If no main geometry but there are coordinates, center on first coordinate
+    const firstCoord = coordinates[0];
+    if (firstCoord.geometry) {
+      try {
+        const geom = typeof firstCoord.geometry === 'string' ? JSON.parse(firstCoord.geometry) : firstCoord.geometry;
+        const firstPoint = getFirstCoordinate(geom);
+        if (firstPoint) {
+          center = firstPoint;
+          zoom = geom.type === 'Point' ? 12 : 10;
+        }
+      } catch (e) {
+        console.error('Error parsing coordinate geometry:', e);
+      }
+    } else if (firstCoord.latitude && firstCoord.longitude) {
+      center = [parseFloat(firstCoord.latitude), parseFloat(firstCoord.longitude)];
+      zoom = 12;
+    }
   }
 
   return (
@@ -2459,35 +2477,49 @@ export default function NotificationDetail() {
               )}
             </div>
             
-            {geometry ? (
-              <>
-                {geometry.type === 'Point' && (
-                  <div style={{ marginBottom: '1rem', padding: '0.75rem', backgroundColor: '#f8f9fa', borderRadius: '4px', color: '#343a40' }}>
-                    <div style={{ fontWeight: 'bold', marginBottom: '0.25rem' }}>Coördinaten</div>
-                    <div style={{ fontFamily: 'monospace', fontSize: '0.95rem' }}>
-                      {geometry.coordinates[1].toFixed(6)}°N, {geometry.coordinates[0].toFixed(6)}°E
-                    </div>
-                  </div>
-                )}
-
-                {/* Add Coordinates Section */}
-                <div style={{ marginBottom: '1rem' }}>
-                  <button
-                    onClick={() => setShowCoordinateForm(!showCoordinateForm)}
-                    style={{ 
-                      padding: '0.6rem 1.2rem',
-                      background: showCoordinateForm ? '#dc3545' : 'var(--color-success)',
-                      color: '#fff',
-                      border: 'none',
-                      borderRadius: '4px',
-                      cursor: 'pointer',
-                      fontSize: '0.9rem',
-                      fontWeight: 'bold'
-                    }}
-                  >
-                    {showCoordinateForm ? '✕ Annuleren' : '+ Extra Coördinaten Toevoegen'}
-                  </button>
+            {/* Show main geometry coordinates if it's a Point */}
+            {geometry && geometry.type === 'Point' && (
+              <div style={{ marginBottom: '1rem', padding: '0.75rem', backgroundColor: '#f8f9fa', borderRadius: '4px', color: '#343a40' }}>
+                <div style={{ fontWeight: 'bold', marginBottom: '0.25rem' }}>Coördinaten</div>
+                <div style={{ fontFamily: 'monospace', fontSize: '0.95rem' }}>
+                  {geometry.coordinates[1].toFixed(6)}°N, {geometry.coordinates[0].toFixed(6)}°E
                 </div>
+              </div>
+            )}
+
+            {/* Show info message when no geometry exists */}
+            {!geometry && (!coordinates || coordinates.length === 0) && (
+              <div style={{ 
+                marginBottom: '1rem', 
+                padding: '0.75rem', 
+                backgroundColor: '#fff3cd', 
+                border: '1px solid #ffc107',
+                borderRadius: '4px',
+                color: '#856404',
+                fontSize: '0.9rem'
+              }}>
+                ℹ️ Deze melding heeft nog geen geografische locatie. Voeg hieronder coördinaten toe of teken op de kaart.
+              </div>
+            )}
+
+            {/* Add Coordinates Section - Always show */}
+            <div style={{ marginBottom: '1rem' }}>
+              <button
+                onClick={() => setShowCoordinateForm(!showCoordinateForm)}
+                style={{ 
+                  padding: '0.6rem 1.2rem',
+                  background: showCoordinateForm ? '#dc3545' : 'var(--color-success)',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '0.9rem',
+                  fontWeight: 'bold'
+                }}
+              >
+                {showCoordinateForm ? '✕ Annuleren' : (geometry ? '+ Extra Coördinaten Toevoegen' : '+ Coördinaten Toevoegen')}
+              </button>
+            </div>
 
                 {showCoordinateForm && (
                   <div style={{ 
@@ -3740,28 +3772,14 @@ export default function NotificationDetail() {
                   </div>
                 )}
                 
-                <div style={{ marginTop: '1rem', fontSize: '0.9rem', color: '#6c757d' }}>
-                  <strong>Type:</strong> {geometry.type}
-                  {geometry.type === 'LineString' && ` (${geometry.coordinates.length} punten)`}
-                  {geometry.type === 'Polygon' && ` (${geometry.coordinates[0].length} hoekpunten)`}
-                </div>
-              </>
-            ) : (
-              <div style={{ 
-                height: '700px', 
-                display: 'flex', 
-                alignItems: 'center', 
-                justifyContent: 'center',
-                backgroundColor: '#f8f9fa',
-                borderRadius: '4px',
-                color: '#6c757d'
-              }}>
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📍</div>
-                  <div>Geen geografische locatie beschikbaar</div>
-                </div>
-              </div>
-            )}
+                {/* Show geometry type info only when geometry exists */}
+                {geometry && (
+                  <div style={{ marginTop: '1rem', fontSize: '0.9rem', color: '#6c757d' }}>
+                    <strong>Type:</strong> {geometry.type}
+                    {geometry.type === 'LineString' && ` (${geometry.coordinates.length} punten)`}
+                    {geometry.type === 'Polygon' && ` (${geometry.coordinates[0].length} hoekpunten)`}
+                  </div>
+                )}
           </div>
 
           {/* Activity Log - Collapsible */}
