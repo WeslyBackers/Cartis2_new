@@ -473,6 +473,25 @@ export default function TaskDetail() {
     }
   }, [task, currentProductionLineId, productionLines]);
 
+  // Keep the "Product toevoegen" dropdown and the Geografisch Overzicht map
+  // filter in sync with the globally selected production line (the header
+  // dropdown). Switching production line while already viewing a task
+  // should immediately update this page to the newly selected line, instead
+  // of only applying on the next task load.
+  const previousGlobalProductionLineRef = useRef<number | null>(currentProductionLineId ?? null);
+  useEffect(() => {
+    const previous = previousGlobalProductionLineRef.current;
+    const next = currentProductionLineId ?? null;
+    previousGlobalProductionLineRef.current = next;
+
+    // Skip the very first run (handled by the per-task init effect above)
+    // and skip if the value didn't actually change.
+    if (previous === next || initializedTaskIdRef.current === null) return;
+
+    setSelectedProductLineId(next);
+    setSelectedMapProductionLines(next ? [next] : []);
+  }, [currentProductionLineId]);
+
   // Edit comment mutation
   const editCommentMutation = useMutation({
     mutationFn: async ({ commentId, comment }: { commentId: number; comment: string }) => {
