@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import api from '../services/api';
@@ -445,25 +445,33 @@ export default function TaskDetail() {
     }
   }, [workflow]);
 
-  // Initialize selected map production lines with task's production line
+  // Initialize (and reset) per-task UI selection state whenever the loaded
+  // task actually changes. This is keyed off the loaded task's own id
+  // (not the route param) so it reliably fires exactly once per task,
+  // including when navigating between tasks via client-side routing
+  // (e.g. the "Gerelateerde Taken" links, which reuse this component
+  // instance instead of remounting it, and can serve cached React Query
+  // data synchronously). Without this, the previously viewed task's
+  // selected production line / map filters incorrectly persisted onto
+  // the newly loaded task.
+  const initializedTaskIdRef = useRef<number | null>(null);
   useEffect(() => {
-    if (task?.production_line_id && selectedMapProductionLines.length === 0) {
-      setSelectedMapProductionLines([task.production_line_id]);
-    }
-  }, [task?.production_line_id]);
+    if (!task || task.id === initializedTaskIdRef.current) return;
+    initializedTaskIdRef.current = task.id;
 
-  useEffect(() => {
-    if (selectedProductLineId) return;
+    setSelectedMapProductionLines(task.production_line_id ? [task.production_line_id] : []);
+    setSelectedMapProductTypes(['enc', 'ienc', 'pilot_enc', 'chart']);
+    setShowAllProductsOnMap(false);
+    setSelectedProductIdToAdd('');
 
     if (currentProductionLineId) {
       setSelectedProductLineId(currentProductionLineId);
-      return;
-    }
-
-    if (productionLines && productionLines.length > 0) {
+    } else if (productionLines && productionLines.length > 0) {
       setSelectedProductLineId(productionLines[0].id);
+    } else {
+      setSelectedProductLineId(null);
     }
-  }, [selectedProductLineId, currentProductionLineId, productionLines]);
+  }, [task, currentProductionLineId, productionLines]);
 
   // Edit comment mutation
   const editCommentMutation = useMutation({
