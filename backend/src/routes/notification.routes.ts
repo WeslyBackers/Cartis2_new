@@ -1166,12 +1166,16 @@ router.post('/:id/decide', authenticate, async (req: AuthRequest, res) => {
           'INSERT INTO activity_log (entity_type, entity_id, action, user_id) VALUES ($1, $2, $3, $4)',
           ['task', taskId, 'created', userId]
         );
+      }
 
-        // Create HPD project for IENC/ZK production lines
-        const taskRow = await pool.query('SELECT task_number FROM tasks WHERE id = $1', [taskId]);
-        if (taskRow.rows.length > 0) {
-          await createHpdProjectForTask(taskId, taskRow.rows[0].task_number, productionLineId);
-        }
+      // Create HPD project for IENC/ZK production lines. Not gated on createdNewTask:
+      // an existing task (e.g. already has a ZK HPD project) can gain a new production
+      // line (e.g. IENC) via a later decision, and that line also needs its own HPD
+      // project. createHpdProjectForTask is idempotent (ON CONFLICT DO NOTHING per
+      // task_id + production_line_id), so calling it unconditionally is safe.
+      const taskRow = await pool.query('SELECT task_number FROM tasks WHERE id = $1', [taskId]);
+      if (taskRow.rows.length > 0) {
+        await createHpdProjectForTask(taskId, taskRow.rows[0].task_number, productionLineId);
       }
     }
 
@@ -1473,12 +1477,16 @@ router.post('/bulk-decide', authenticate, async (req: AuthRequest, res) => {
               'INSERT INTO activity_log (entity_type, entity_id, action, user_id) VALUES ($1, $2, $3, $4)',
               ['task', taskId, 'created', userId]
             );
+          }
 
-            // Create HPD project for IENC/ZK production lines
-            const taskRow = await pool.query('SELECT task_number FROM tasks WHERE id = $1', [taskId]);
-            if (taskRow.rows.length > 0) {
-              await createHpdProjectForTask(taskId, taskRow.rows[0].task_number, productionLineId);
-            }
+          // Create HPD project for IENC/ZK production lines. Not gated on createdNewTask:
+          // an existing task (e.g. already has a ZK HPD project) can gain a new production
+          // line (e.g. IENC) via a later decision, and that line also needs its own HPD
+          // project. createHpdProjectForTask is idempotent (ON CONFLICT DO NOTHING per
+          // task_id + production_line_id), so calling it unconditionally is safe.
+          const taskRow = await pool.query('SELECT task_number FROM tasks WHERE id = $1', [taskId]);
+          if (taskRow.rows.length > 0) {
+            await createHpdProjectForTask(taskId, taskRow.rows[0].task_number, productionLineId);
           }
         }
       }
