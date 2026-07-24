@@ -1101,20 +1101,27 @@ router.post('/:id/decide', authenticate, async (req: AuthRequest, res) => {
         [id, productionLineId]
       );
 
-      // Link products to task
+      // Link products to task. Each product is handled independently so that a
+      // failure linking one product (e.g. version creation error) does not
+      // silently prevent the remaining notice-selected products for this
+      // production line from being migrated to the task.
       for (const row of productsResult.rows) {
-        const productVersionId = await getOrCreateInProgressProductVersion(Number(row.product_id), { userId }, pool);
-        await pool.query(
-          `INSERT INTO task_products (task_id, product_id, product_version_id, status)
-           VALUES ($1, $2, $3, $4)
-           ON CONFLICT (task_id, product_id) DO NOTHING`,
-          [taskId, row.product_id, productVersionId, 'hoog_te_verwerken']
-        );
+        try {
+          const productVersionId = await getOrCreateInProgressProductVersion(Number(row.product_id), { userId }, pool);
+          await pool.query(
+            `INSERT INTO task_products (task_id, product_id, product_version_id, status)
+             VALUES ($1, $2, $3, $4)
+             ON CONFLICT (task_id, product_id) DO NOTHING`,
+            [taskId, row.product_id, productVersionId, 'hoog_te_verwerken']
+          );
 
-        await ensureCorrectionListTaskLink(taskId, Number(row.product_id), {
-          userId,
-          status: 'hoog_te_verwerken',
-        }, pool);
+          await ensureCorrectionListTaskLink(taskId, Number(row.product_id), {
+            userId,
+            status: 'hoog_te_verwerken',
+          }, pool);
+        } catch (linkError) {
+          console.error(`[Decide] Failed to link product ${row.product_id} to task ${taskId} (continuing with remaining products):`, linkError);
+        }
       }
 
       // Auto-add BaZ-2 for PUBL production line
@@ -1271,18 +1278,26 @@ router.post('/bulk-decide', authenticate, async (req: AuthRequest, res) => {
           [notificationIds, productionLineId]
         );
 
-        // Link products to task
+        // Link products to task. Each product is handled independently so that a
+        // failure linking one product does not silently prevent the remaining
+        // notice-selected products for this production line from being migrated.
         for (const row of productsResult.rows) {
-          const productVersionId = await getOrCreateInProgressProductVersion(Number(row.product_id), { userId }, pool);
-          await pool.query(
-            'INSERT INTO task_products (task_id, product_id, product_version_id, status) VALUES ($1, $2, $3, $4)',
-            [taskId, row.product_id, productVersionId, 'hoog_te_verwerken']
-          );
+          try {
+            const productVersionId = await getOrCreateInProgressProductVersion(Number(row.product_id), { userId }, pool);
+            await pool.query(
+              `INSERT INTO task_products (task_id, product_id, product_version_id, status)
+               VALUES ($1, $2, $3, $4)
+               ON CONFLICT (task_id, product_id) DO NOTHING`,
+              [taskId, row.product_id, productVersionId, 'hoog_te_verwerken']
+            );
 
-          await ensureCorrectionListTaskLink(taskId, Number(row.product_id), {
-            userId,
-            status: 'hoog_te_verwerken',
-          }, pool);
+            await ensureCorrectionListTaskLink(taskId, Number(row.product_id), {
+              userId,
+              status: 'hoog_te_verwerken',
+            }, pool);
+          } catch (linkError) {
+            console.error(`[Bulk Decide - combined] Failed to link product ${row.product_id} to task ${taskId} (continuing with remaining products):`, linkError);
+          }
         }
 
         // Auto-add BaZ-2 for PUBL production line
@@ -1394,20 +1409,26 @@ router.post('/bulk-decide', authenticate, async (req: AuthRequest, res) => {
             [notifId, productionLineId]
           );
 
-          // Link products to task
+          // Link products to task. Each product is handled independently so that a
+          // failure linking one product does not silently prevent the remaining
+          // notice-selected products for this production line from being migrated.
           for (const row of productsResult.rows) {
-            const productVersionId = await getOrCreateInProgressProductVersion(Number(row.product_id), { userId }, pool);
-            await pool.query(
-              `INSERT INTO task_products (task_id, product_id, product_version_id, status)
-               VALUES ($1, $2, $3, $4)
-               ON CONFLICT (task_id, product_id) DO NOTHING`,
-              [taskId, row.product_id, productVersionId, 'hoog_te_verwerken']
-            );
+            try {
+              const productVersionId = await getOrCreateInProgressProductVersion(Number(row.product_id), { userId }, pool);
+              await pool.query(
+                `INSERT INTO task_products (task_id, product_id, product_version_id, status)
+                 VALUES ($1, $2, $3, $4)
+                 ON CONFLICT (task_id, product_id) DO NOTHING`,
+                [taskId, row.product_id, productVersionId, 'hoog_te_verwerken']
+              );
 
-            await ensureCorrectionListTaskLink(taskId, Number(row.product_id), {
-              userId,
-              status: 'hoog_te_verwerken',
-            }, pool);
+              await ensureCorrectionListTaskLink(taskId, Number(row.product_id), {
+                userId,
+                status: 'hoog_te_verwerken',
+              }, pool);
+            } catch (linkError) {
+              console.error(`[Bulk Decide - individual] Failed to link product ${row.product_id} to task ${taskId} (continuing with remaining products):`, linkError);
+            }
           }
 
           // Auto-add BaZ-2 for PUBL production line
