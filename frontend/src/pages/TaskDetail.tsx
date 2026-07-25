@@ -1312,11 +1312,15 @@ export default function TaskDetail() {
               </div>
               {(() => {
                 const hpdProject = (hpdProjects || []).find((p: any) => p.production_line_id === currentProductionLineId);
-                return hpdProject ? (
+                if (!hpdProject) return null;
+                const projectCode = hpdProject.production_line_code === 'ZK'
+                  ? (hpdProject.project_code_Z || hpdProject.project_code_I)
+                  : hpdProject.project_code_I;
+                return (
                   <div style={{ fontSize: '0.85rem', color: '#0066cc', fontWeight: '500', marginTop: '0.25rem' }}>
-                    HPD Project: {hpdProject.project_code}
+                    HPD Project: {projectCode}
                   </div>
-                ) : null;
+                );
               })()}
             </div>
 
@@ -1397,7 +1401,7 @@ export default function TaskDetail() {
                   >
                     <div>
                       <div style={{ fontWeight: '700', fontSize: '1.1rem', color: '#343a40' }}>
-                        {proj.project_code}
+                        {proj.production_line_code === 'ZK' ? (proj.project_code_Z || proj.project_code_I) : proj.project_code_I}
                       </div>
                       <div style={{ fontSize: '0.85rem', color: '#6c757d', marginTop: '0.25rem' }}>
                         {proj.production_line_name} ({proj.production_line_code})

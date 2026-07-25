@@ -396,11 +396,15 @@ CREATE TABLE task_articles (
 );
 
 -- HPD projects linked to tasks (future Oracle sync)
+-- project_code_I: Inland ENC (IENC) project code = 'I_' + task_number. Always set.
+-- project_code_Z: Zeekaarten (ZK) project code = 'Z_' + task_number. Only set for rows
+--                 belonging to the ZK production line.
 CREATE TABLE hpd_projects (
     id                  SERIAL PRIMARY KEY,
     task_id             INTEGER NOT NULL REFERENCES tasks(id)            ON DELETE CASCADE,
     production_line_id  INTEGER NOT NULL REFERENCES production_lines(id) ON DELETE CASCADE,
-    project_code        VARCHAR(50) NOT NULL,
+    project_code_I      VARCHAR(50) NOT NULL,
+    project_code_Z      VARCHAR(50),
     status              VARCHAR(50) NOT NULL DEFAULT 'under_construction',
     synced_to_oracle    BOOLEAN DEFAULT FALSE,
     oracle_sync_date    TIMESTAMP,
@@ -472,7 +476,8 @@ CREATE INDEX idx_task_pl_status_task            ON task_production_line_status(t
 CREATE INDEX idx_task_pl_status_pl              ON task_production_line_status(production_line_id);
 CREATE INDEX idx_task_pl_status_status          ON task_production_line_status(status);
 CREATE INDEX idx_hpd_projects_task_id           ON hpd_projects(task_id);
-CREATE INDEX idx_hpd_projects_project_code      ON hpd_projects(project_code);
+CREATE INDEX idx_hpd_projects_project_code_i    ON hpd_projects(project_code_I);
+CREATE INDEX idx_hpd_projects_project_code_z    ON hpd_projects(project_code_Z);
 
 CREATE INDEX idx_product_versions_status        ON product_versions(status);
 CREATE INDEX idx_product_version_attach_ver     ON product_version_attachments(product_version_id);

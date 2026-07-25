@@ -25,11 +25,17 @@ export async function createHpdProjectForTask(taskId: number, taskNumber: string
 
     const projectCode = `${prefix}${taskNumber}`;
 
+    // The hpd_projects table stores the IENC and ZK project codes in separate
+    // columns (project_code_I is required on every row, project_code_Z is only
+    // set for rows belonging to the ZK production line).
+    const projectCodeI = plCode === 'IENC' ? projectCode : `I_${taskNumber}`;
+    const projectCodeZ = plCode === 'ZK' ? projectCode : null;
+
     await pool.query(
-      `INSERT INTO hpd_projects (task_id, production_line_id, project_code, status)
-       VALUES ($1, $2, $3, 'under_construction')
+      `INSERT INTO hpd_projects (task_id, production_line_id, project_code_I, project_code_Z, status)
+       VALUES ($1, $2, $3, $4, 'under_construction')
        ON CONFLICT (task_id, production_line_id) DO NOTHING`,
-      [taskId, productionLineId, projectCode]
+      [taskId, productionLineId, projectCodeI, projectCodeZ]
     );
 
     console.log(`[HPD] Created project ${projectCode} for task ${taskNumber} (line: ${plCode})`);
@@ -49,12 +55,13 @@ export async function syncHpdProjectStatus(taskId: number, productionLineId: num
       `UPDATE hpd_projects
        SET status = $1, updated_at = CURRENT_TIMESTAMP
        WHERE task_id = $2 AND production_line_id = $3
-       RETURNING project_code`,
+       RETURNING project_code_I, project_code_Z`,
       [status, taskId, productionLineId]
     );
 
     if (result.rows.length > 0) {
-      console.log(`[HPD] Updated project ${result.rows[0].project_code} status to ${status}`);
+      const { project_code_I, project_code_Z } = result.rows[0];
+      console.log(`[HPD] Updated project ${project_code_Z || project_code_I} status to ${status}`);
     }
   } catch (error) {
     console.error(`[HPD] Error syncing project status for task ${taskId}:`, error);
@@ -70,7 +77,7 @@ export async function getHpdProjectsForTask(taskId: number): Promise<any[]> {
      FROM hpd_projects hp
      JOIN production_lines pl ON hp.production_line_id = pl.id
      WHERE hp.task_id = $1
-     ORDER BY hp.project_code`,
+     ORDER BY COALESCE(hp.project_code_Z, hp.project_code_I)`,
     [taskId]
   );
   return result.rows;
