@@ -361,7 +361,7 @@ doc.add_paragraph()
 heading(doc, '4. Back-end REST API', level=1)
 
 para(doc, (
-    'De back-end biedt 78+ REST-endpoints gegroepeerd in 9 route-modules. '
+    'De back-end biedt 86 REST-endpoints gegroepeerd in 9 route-modules. '
     'Alle endpoints (behalve /api/auth/login en /health) zijn beveiligd met JWT-middleware.'
 ))
 
@@ -388,7 +388,7 @@ heading(doc, '4.2 Sleutelendpoints in detail', level=2)
 heading(doc, 'Meldingen', level=3)
 bullet(doc, 'POST /api/notifications — Melding aanmaken; zone-detectie wordt automatisch getriggerd.')
 bullet(doc, 'POST /api/notifications/:id/decide — Beslissing nemen (Ja/Nee); bij "Ja" wordt automatisch een taak aangemaakt en producten gekoppeld.')
-bullet(doc, 'POST /api/notifications/:id/bulk-decide — Bulk-beslissing op meerdere meldingen tegelijk.')
+bullet(doc, 'POST /api/notifications/bulk-decide — Bulk-beslissing op meerdere meldingen tegelijk.')
 bullet(doc, 'POST /api/notifications/:id/detect-zones — Manuele herdetectie van zones.')
 bullet(doc, 'GET /api/notifications/:id/attachments — Bijlagen ophalen (Supabase Storage in productie, lokale /uploads/ in dev).')
 
