@@ -336,7 +336,6 @@ for i, s in enumerate([
 add_h3(doc, "Notities beheren")
 for action, desc in [
     ("Bewerken",              "Opent de notitie in bewerkingsmodus (vereist bewerkerrechten)."),
-    ("Houden (<lijn>)",       "Dwingt de notitie zichtbaar te houden voor de huidige productielijn."),
     ("Verwijderen voor lijn", "Verbergt de notitie enkel voor de huidige productielijn."),
     ("Verwijderen",           "Verwijdert de notitie definitief (enkel voor de aanmaker)."),
 ]:
@@ -474,7 +473,7 @@ body(doc,
 add_h3(doc, "Zones")
 body(doc, "Zones zijn geografische gebieden die met de melding overlappen.")
 for action, desc in [
-    ("Automatische detectie",    "Klik op 'Zones detecteren' om zones automatisch te berekenen op basis van de geometrieën."),
+    ("Automatische detectie",    "Klik op '⟳ Herbereken zones' om zones automatisch te berekenen op basis van de geometrieën."),
     ("Handmatig toevoegen",      "Kies een zone uit het dropdown en klik op 'Toevoegen'."),
     ("Verwijderen",              "Klik op het 'x'-pictogram naast een zone om de koppeling te verwijderen."),
     ("Gebieden tonen/verbergen", "Schakel de zichtbaarheid van zone-gebieden in/uit op de kaart."),
@@ -484,7 +483,7 @@ for action, desc in [
 add_h3(doc, "Producten")
 body(doc, "Het productenpaneel toont welke nautische producten overlappen met de melding.")
 for action, desc in [
-    ("Detectie",        "Klik op 'Producten detecteren' voor automatische detectie."),
+    ("Detectie",        "Klik op '⟳ Herbereken producten' voor automatische detectie."),
     ("Handmatig koppelen", "Zoek een product en klik op 'Koppelen'."),
     ("Ontkoppelen",     "Klik op 'Ontkoppelen' bij een gekoppeld product."),
     ("Kaartweergave",   "Schakel producttypen in/uit op de kaart."),
@@ -584,7 +583,7 @@ body(doc, "Voor de productielijn 'Publ' kunnen BaZ-artikelen worden beheerd:")
 for item in [
     "Klik op 'Nieuw artikel' om een artikel aan te maken.",
     "Vul het boeknummer, de Nederlandse titel en inhoud in.",
-    "Gebruik 'Vertalen' om automatisch een Engelse versie te genereren.",
+    "Gebruik 'Auto-vertalen NL → EN' om automatisch een Engelse versie te genereren.",
     "Sla het artikel op of verwijder het via de acties in de artikellijst.",
 ]:
     bullet(doc, item)
@@ -773,11 +772,11 @@ faq = [
      "of handmatig coördinaten invoeren. "
      "Meerdere formaten worden ondersteund (DD, DDM, DMS, Lambert, …)."),
     ("Zones worden niet automatisch herkend.",
-     "Klik op 'Zones detecteren' op de detailpagina van de melding. "
+     "Klik op '⟳ Herbereken zones' op de detailpagina van de melding. "
      "Er moet minstens één geometrie aanwezig zijn voor de detectie."),
     ("Hoe vertaal ik een BaZ-artikel naar het Engels?",
      "Open de taakdetailpagina, ga naar het BaZ-artikelenpaneel, "
-     "open het artikel en klik op 'Vertalen'. De Engelse tekst wordt automatisch ingevuld."),
+     "open het artikel en klik op 'Auto-vertalen NL → EN'. De Engelse tekst wordt automatisch ingevuld."),
     ("Kan ik meerdere meldingen tegelijk afhandelen?",
      "Ja. Selecteer meerdere meldingen via de selectievakjes "
      "en gebruik de bulkacties (Ja voor alle / Niet nodig voor alle)."),
