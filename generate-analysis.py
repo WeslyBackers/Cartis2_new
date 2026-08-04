@@ -151,7 +151,7 @@ run3.font.size = Pt(13)
 
 date_p = doc.add_paragraph()
 date_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-run4 = date_p.add_run(f'Versie: April 2026')
+run4 = date_p.add_run(f'Versie: April 2026 (bijgewerkt augustus 2026)')
 run4.font.size = Pt(11)
 run4.font.color.rgb = RGBColor(0x60, 0x60, 0x60)
 
@@ -203,12 +203,14 @@ two_col_table(doc,
     rows=[
         ('Back-end runtime',    'Node.js 20 + TypeScript 5'),
         ('Back-end framework',  'Express 4.18'),
-        ('Database',            'PostgreSQL (met PostGIS extensie)'),
+        ('Database',            'PostgreSQL + PostGIS, gehost op Supabase'),
         ('ORM / Query',         'pg (node-postgres) — parameterized queries'),
+        ('Hosting / deployment','Vercel (serverless functions voor de API, statische build voor de front-end)'),
         ('Authenticatie',       'JWT (jsonwebtoken) + bcryptjs'),
-        ('Beveiliging',         'Helmet, CORS, express-validator'),
-        ('File upload',         'Multer (max 10 MB; PDF, Office, afbeeldingen, XML, ZIP)'),
-        ('Mail',                'Nodemailer (nautinfo mailbox – config aanwezig)'),
+        ('Beveiliging',         'Helmet, CORS (express-validator staat als dependency, maar wordt nergens gebruikt)'),
+        ('File upload',         'Multer (max 50 MB; PDF, Office, afbeeldingen, XML, ZIP, CAD/GIS-formaten zoals DWG/DXF/Shapefile/GeoJSON/KML/GPX)'),
+        ('Bestandsopslag',      'Supabase Storage (bucket "attachments") in productie; lokale /uploads/-map als fallback in lokale ontwikkeling'),
+        ('Mail',                'Nodemailer als dependency aanwezig maar niet geïmplementeerd; e-mails (.msg/.eml) worden client-side ingelezen (msgreader/postal-mime) bij drag-and-drop'),
         ('Vertaling',           'Google Cloud Translate (@google-cloud/translate)'),
         ('Front-end framework', 'React 18 + TypeScript 5'),
         ('Build tool',          'Vite 5'),
@@ -216,7 +218,7 @@ two_col_table(doc,
         ('State management',    'Zustand (auth) + TanStack React Query 5 (server state)'),
         ('Kaarten',             'Leaflet 1.9 + react-leaflet + leaflet-draw'),
         ('Coördinaten',         'proj4 (7 coördinaatformaten: DD, DDM, DMS + 4 projected CRS)'),
-        ('WYSIWYG editor',      'SunEditor (meldingen) / QuillEditor'),
+        ('WYSIWYG editor',      'SunEditor (meldingen, taken, commentaren, dashboard-notities)'),
         ('Export',              'JSZip + @mapbox/shp-write (Shapefile export)'),
         ('Logging',             'Morgan (HTTP logging)'),
     ],
@@ -231,8 +233,8 @@ code_block(doc, '├── backend/                 # Node.js Express API')
 code_block(doc, '│   ├── src/')
 code_block(doc, '│   │   ├── config/         # DB- en omgevingsconfiguratie')
 code_block(doc, '│   │   ├── middleware/     # Auth-middleware, foutafhandeling')
-code_block(doc, '│   │   ├── routes/         # 8 route-modules (70+ endpoints)')
-code_block(doc, '│   │   ├── services/       # Zone-detectie, HPD, productversies')
+code_block(doc, '│   │   ├── routes/         # 9 route-modules (78+ endpoints)')
+code_block(doc, '│   │   ├── services/       # Zone-detectie, HPD, productversies, correctielijsten, opslag')
 code_block(doc, '│   │   └── index.ts        # Express entry-point')
 code_block(doc, '│   ├── database/           # schema.sql + 13 migratiescripts')
 code_block(doc, '│   └── uploads/            # Geüploade bijlagen (lokale opslag)')
@@ -251,14 +253,15 @@ heading(doc, '2.3 Communicatiemodel', level=2)
 para(doc, (
     'De front-end (poort 5173 in dev) communiceert uitsluitend via HTTP(S) met de back-end REST API '
     '(poort 3000). Authenticatie verloopt via een Bearer JWT-token dat bij elke request meegestuurd wordt. '
-    'De back-end beheert de verbinding met PostgreSQL via een connection pool.'
+    'De back-end beheert de verbinding met PostgreSQL via een connection pool. In productie draait de '
+    'applicatie op Vercel; de database en de bijlage-opslag lopen via Supabase (PostgreSQL/PostGIS + Storage).'
 ))
 
 bullet(doc, 'Frontend → REST API (JSON over HTTP, Bearer token)')
-bullet(doc, 'REST API → PostgreSQL (parameterized queries via pg pool)')
+bullet(doc, 'REST API → PostgreSQL/PostGIS op Supabase (parameterized queries via pg pool)')
 bullet(doc, 'REST API → Google Translate API (via @google-cloud/translate)')
 bullet(doc, 'REST API → CARIS HPD (HPD Project Service, synchronisatie)')
-bullet(doc, 'REST API → Filesystem (uploads/ map voor bijlagen)')
+bullet(doc, 'REST API → Supabase Storage (bijlagen in productie) / lokale filesystem (uploads/ map in dev)')
 
 doc.add_paragraph()
 add_horizontal_rule(doc)
@@ -284,27 +287,35 @@ two_col_table(doc,
         ('notification_decisions',      'Beslissing (–/Ja/Nee) per melding per productielijn'),
         ('notification_coordinates',    'Aanvullende coördinaten bij een melding'),
         ('notification_comments',       'Commentaren bij meldingen'),
-        ('notification_zones',          'Gedetecteerde geografische zones bij een melding (automatisch + manueel)'),
-        ('notification_flags',          'Vlaggen: MSI actief, opvolging nodig, extra info nodig'),
-        ('products',                    'Nautische producten (kaarten, publicaties) met GeoJSON-geometrie en productielijkoppeling'),
+        ('notification_zones',          'Gedetecteerde geografische zones bij een melding (automatisch + manueel), gekoppeld aan products (type=\'zone\') of kml_coverages'),
+        ('notification_info_requests',  'Informatie-aanvragen bij meldingen (metadata; geen automatische verzending)'),
+        ('products',                    'Nautische producten (kaarten, publicaties, zones) met GeoJSON-geometrie en productielijkoppeling'),
         ('notifications_products',      'M2M koppeling melding ↔ product (met is_relevant vlag)'),
-        ('tasks',                       'Taken (taaknummer YYNNN, titel, BaZ-nr, CARIS HPD-koppeling)'),
+        ('tasks',                       'Taken (taaknummer YYNNN, titel, BaZ-nr, CARIS HPD-koppeling, vlaggen msi_active/needs_followup/needs_extra_info)'),
         ('task_notifications',          'M2M koppeling taak ↔ melding'),
-        ('task_products',               'Koppeling taak ↔ product met status-tracking'),
+        ('task_products',               'Koppeling taak ↔ product met status- én execution_status-tracking'),
         ('task_comments',               'Commentaren bij taken'),
         ('task_workflow',               'Workflow-statussen per taak'),
         ('task_production_line_status', 'Productielijn-specifieke status per taak'),
         ('task_articles',               'BaZ/publicatie-artikelen bij taken (meertalig via Google Translate)'),
+        ('task_info_requests',          'Informatie-aanvragen bij taken (metadata; geen automatische verzending)'),
         ('product_versions',            'Versies van een product (status: In Progress / Ready / Published)'),
+        ('product_version_attachments', 'Bijlagen per productversie'),
         ('related_tasks',               'M2M koppeling verwante taken'),
         ('attachments',                 'Bijlagen bij meldingen (bestandsnaam, pad, MIME-type, grootte)'),
-        ('kml_coverages',               'Geïmporteerde KML-dekgebieden (zones)'),
+        ('kml_files / kml_coverages',   'Geïmporteerde KML-bestanden en hun individuele dekgebieden'),
         ('hpd_projects',                'CARIS HPD-projectkoppelingen'),
+        ('user_notes / user_note_production_lines', 'Persoonlijke dashboard-notities met prioriteit, zichtbaar per (gekozen) productielijn(en)'),
         ('activity_log',                'Audit trail van alle acties'),
     ],
     header=['Tabel', 'Beschrijving'],
     col_widths=[2.5, 4.3],
 )
+
+para(doc, (
+    'Let op: de vlaggen MSI actief / opvolging nodig / extra info nodig zijn kolommen op de tasks-tabel '
+    '(msi_active, needs_followup, needs_extra_info) en geen aparte tabel.'
+), italic=True, size=9)
 
 heading(doc, '3.2 Ruimtelijke functionaliteit (PostGIS)', level=2)
 bullet(doc, 'PostGIS extensie voor geometrieverwerking en ruimtelijke queries.')
@@ -313,7 +324,10 @@ bullet(doc, 'Ruimtelijke indexen op geometry-kolommen van products en notificati
 bullet(doc, 'Ray-casting algoritme (TypeScript) voor point-in-polygon zone-detectie.')
 
 heading(doc, '3.3 Migratiegeschiedenis', level=2)
-para(doc, 'Het schema is uitgebreid via 13 incrementele SQL-migratiescripts:')
+para(doc, (
+    'Het basisschema (schema.sql) is sindsdien uitgebreid via 27 incrementele SQL-migratiescripts '
+    '(plus een geconsolideerd setup-complete.sql voor nieuwe Supabase-omgevingen). Belangrijkste migraties:'
+))
 
 migration_rows = [
     ('add-geometry-to-coordinates.sql',         'Geometrie-kolom aan coördinaten-tabel'),
@@ -321,14 +335,20 @@ migration_rows = [
     ('add-kml-coverages.sql',                   'KML-dekgebieden (zones)'),
     ('add-notification-comments.sql',           'Commentaren bij meldingen'),
     ('add-notification-coordinates.sql',        'Aanvullende coördinaten'),
-    ('add-notification-flags.sql',              'Vlaggen (MSI, opvolging, extra info)'),
     ('add-notification-zones.sql',              'Zone-koppelingen bij meldingen'),
+    ('add-notification-info-requests.sql',      'Informatie-aanvragen bij meldingen'),
     ('add-opmerkingen.sql',                     'Opmerkingenveld'),
     ('add-task-articles.sql',                   'Artikelen bij taken'),
     ('add-task-comments-and-workflow.sql',      'Taakcommentaren en workflow'),
     ('add-task-info-requests.sql',              'Informatie-aanvragen bij taken'),
     ('add-task-production-line-status.sql',     'Productielijn-status per taak'),
+    ('add-wait-for-zk-to-task-production-line-status.sql', '"Wacht op ZK"-status toegevoegd'),
     ('add-article-titles.sql',                  'Titels voor artikelen'),
+    ('add-product-version-attachments.sql',     'Bijlagen per productversie'),
+    ('add-note-priority.sql',                   'Prioriteit voor dashboard-notities'),
+    ('migrate-notification-zones-to-products.sql', 'Zone-detectie omgezet van kml_coverages naar products (type=\'zone\')'),
+    ('add-be3vlbnk-zk-and-products-composite-unique.sql', 'Uniciteitsconstraint producten per productielijn'),
+    ('overige (7)',                             'Backfill- en opruimscripts (task_production_line_status, product/taak-koppelingen, indexen, PostGIS-activatie, teststgebruiker)'),
 ]
 two_col_table(doc, migration_rows, header=['Migratiescript', 'Doel'], col_widths=[3.2, 3.6])
 
@@ -341,7 +361,7 @@ doc.add_paragraph()
 heading(doc, '4. Back-end REST API', level=1)
 
 para(doc, (
-    'De back-end biedt 70+ REST-endpoints gegroepeerd in 8 route-modules. '
+    'De back-end biedt 78+ REST-endpoints gegroepeerd in 9 route-modules. '
     'Alle endpoints (behalve /api/auth/login en /health) zijn beveiligd met JWT-middleware.'
 ))
 
@@ -350,13 +370,14 @@ heading(doc, '4.1 Route-overzicht', level=2)
 two_col_table(doc,
     rows=[
         ('/api/auth/*',             '2 endpoints — login, huidige gebruiker opvragen'),
-        ('/api/notifications/*',    '22 endpoints — CRUD meldingen, beslissingen, bulk-beslissing, commentaren, bijlagen, coördinaten, zone-detectie, product-detectie'),
-        ('/api/tasks/*',            '20 endpoints — CRUD taken, workflow, commentaren, artikelen, HPD-sync, productielijn-status, gerelateerde taken'),
-        ('/api/products/*',         '8 endpoints — CRUD producten, koppelen/ontkoppelen aan meldingen, detectie op geometrie'),
-        ('/api/product-versions/*', '6 endpoints — versies aanmaken, publiceren, taken koppelen, incomplete taken doorschuiven'),
-        ('/api/production-lines/*', '2 endpoints — lijst productielijnen'),
-        ('/api/users/*',            '3 endpoints — lijst gebruikers, rechten'),
-        ('/api/coverages/*',        '5 endpoints — KML-dekgebieden beheren'),
+        ('/api/notifications/*',    '24 endpoints — CRUD meldingen, beslissingen, bulk-beslissing, commentaren, info-aanvragen, bijlagen, coördinaten, zone-detectie, product-detectie'),
+        ('/api/tasks/*',            '25 endpoints — CRUD taken, workflow, commentaren, artikelen + vertaling, vlaggen, HPD-sync, productielijn-status, gerelateerde taken, doorlooptijden'),
+        ('/api/products/*',         '9 endpoints — CRUD producten, koppelen/ontkoppelen aan meldingen, detectie op geometrie'),
+        ('/api/product-versions/*', '11 endpoints — versies aanmaken, publiceren, taken koppelen, execution-status, incomplete taken doorschuiven, bijlagen'),
+        ('/api/production-lines/*', '1 endpoint — lijst productielijnen'),
+        ('/api/users/*',            '1 endpoint — lijst gebruikers'),
+        ('/api/coverages/*',        '8 endpoints — KML-bestanden/dekgebieden/zones opzoeken en bevragen'),
+        ('/api/notes/*',            '5 endpoints — persoonlijke dashboard-notities (CRUD + productielijn-zichtbaarheid)'),
     ],
     header=['Route prefix', 'Omschrijving'],
     col_widths=[2.5, 4.3],
@@ -367,18 +388,21 @@ heading(doc, '4.2 Sleutelendpoints in detail', level=2)
 heading(doc, 'Meldingen', level=3)
 bullet(doc, 'POST /api/notifications — Melding aanmaken; zone-detectie wordt automatisch getriggerd.')
 bullet(doc, 'POST /api/notifications/:id/decide — Beslissing nemen (Ja/Nee); bij "Ja" wordt automatisch een taak aangemaakt en producten gekoppeld.')
-bullet(doc, 'POST /api/notifications/bulk-decide — Bulk-beslissing op meerdere meldingen tegelijk.')
+bullet(doc, 'POST /api/notifications/:id/bulk-decide — Bulk-beslissing op meerdere meldingen tegelijk.')
 bullet(doc, 'POST /api/notifications/:id/detect-zones — Manuele herdetectie van zones.')
-bullet(doc, 'GET /api/notifications/:id/attachments — Bijlagen ophalen; bestanden staan op /uploads/.')
+bullet(doc, 'GET /api/notifications/:id/attachments — Bijlagen ophalen (Supabase Storage in productie, lokale /uploads/ in dev).')
 
 heading(doc, 'Taken', level=3)
 bullet(doc, 'PUT /api/tasks/:id — Taak bijwerken (formulier incl. HPD-velden, artikelen, workflow).')
+bullet(doc, 'PATCH /api/tasks/:id/flags — Vlaggen bijwerken (msi_active, needs_followup, needs_extra_info).')
 bullet(doc, 'PUT /api/tasks/:taskId/products/:productId — Productstatus per taak bijwerken (te_verwerken → voltooid).')
-bullet(doc, 'POST /api/tasks/:id/translate — Artikeltekst vertalen via Google Cloud Translate.')
+bullet(doc, 'POST /api/tasks/:id/articles/translate — Artikeltekst vertalen via Google Cloud Translate.')
 bullet(doc, 'GET /api/tasks/:id/hpd-project — CARIS HPD-projectinfo ophalen.')
+bullet(doc, 'GET /api/tasks/lead-times — Doorlooptijden per productielijn (gebruikt door de /lead-times pagina).')
 
 heading(doc, 'Productversies', level=3)
 bullet(doc, 'POST /api/product-versions/:id/publish — Versie publiceren; niet-voltooide taken worden automatisch doorgeschoven naar de volgende versie.')
+bullet(doc, 'PATCH /api/product-versions/:id/tasks/:taskId/execution-status — Uitvoeringsstatus van een taak binnen een versie bijwerken.')
 
 heading(doc, '4.3 Beveiliging', level=2)
 
@@ -390,10 +414,10 @@ two_col_table(doc,
         ('CORS',                        '✅ Geconfigureerd in Express'),
         ('Security headers',            '✅ Helmet middleware'),
         ('Role-based access control',   '✅ can_view / can_edit / can_publish per productielijn'),
-        ('File upload validatie',       '✅ MIME-typecheck + max 10 MB'),
+        ('File upload validatie',       '✅ MIME-typecheck + max 50 MB'),
         ('Auto-logout bij 401',         '✅ Front-end interceptor'),
         ('Rate limiting',               '⚠️ Nog niet geïmplementeerd'),
-        ('Input sanitization',          '⚠️ Deels via express-validator; verder uitbreiden'),
+        ('Input sanitization',          '⚠️ express-validator is als dependency aanwezig maar wordt nergens gebruikt; alleen gerichte HTML-sanitization in de notities-route'),
         ('CSRF-beveiliging',            '⚠️ Nog niet geïmplementeerd'),
     ],
     header=['Beveiligingsmaatregel', 'Status'],
@@ -413,11 +437,12 @@ heading(doc, '5.1 Paginastructuur', level=2)
 two_col_table(doc,
     rows=[
         ('/login',                      'Inlogformulier met validatie; redirect naar dashboard na succesvolle login'),
-        ('/ (Dashboard)',               'Statistieken: openstaande meldingen, actieve taken; overzichtswidgets per productielijn'),
+        ('/ (Dashboard)',               'Statistieken: openstaande meldingen, actieve taken; overzichtswidgets per productielijn; persoonlijke dashboard-notities'),
         ('/notifications',              'Meldingenlijst (paginering, zoeken, filteren, sorteerbare kolommen, bulk-beslissing)'),
-        ('/notifications/:id',          'Meldingdetail: kaart (14 WMS-lagen), bijlagen, commentaren, coördinaten, zones, gekoppelde producten'),
+        ('/notifications/:id',          'Meldingdetail: kaart (14 WMS-lagen), bijlagen, commentaren, coördinaten, zones, gekoppelde producten, info-aanvragen'),
         ('/tasks',                      'Takenlijst per productielijn (multi-productielijn status, filtering, sortering)'),
         ('/tasks/:id',                  'Taakdetail: formulier, kaart, workflow, artikelen (WYSIWYG), HPD-sync, gerelateerde taken'),
+        ('/lead-times',                 'Doorlooptijden-dashboard: gemiddelde verwerkingstijd per productielijn/status'),
         ('/products',                   'Productencatalogus (tabel- en kaartweergave, kleurcodering per type/gebruiksniveau)'),
         ('/product-versions',           'Productversies (status In Progress / Ready / Published, taken koppelen)'),
         ('/published-product-versions', 'Archief van gepubliceerde versies'),
@@ -437,14 +462,17 @@ two_col_table(doc,
     rows=[
         ('Layout',            'Header, inklapbare sidebar, content-area; productielijn-switcher met waarschuwingsindicator'),
         ('CoordinateInput',   '7 coördinaatformaten: DD, DDM, DMS + 4 geprojecteerde CRS (via proj4)'),
-        ('FileUpload',        'Drag & drop, MIME-validatie, max 10 MB; bestandslijst met download/verwijder'),
+        ('FileUpload',        'Drag & drop, MIME-validatie, max 50 MB; bestandslijst met download/verwijder'),
         ('TaskCharts',        'SVG-taartdiagram voor statusverdeling van taken'),
-        ('QuillEditor',       'Rich-text editor voor commentaren'),
-        ('SunEditor',         'WYSIWYG voor meldingstoelichting en artikelen'),
+        ('SunEditor',         'WYSIWYG voor meldingstoelichting, artikelen, commentaren en dashboard-notities'),
     ],
     header=['Component', 'Beschrijving'],
     col_widths=[2.0, 4.8],
 )
+para(doc, (
+    'Opmerking: er bestaat nog een lege, ongebruikte QuillEditor.tsx-component in de codebase '
+    '(dode code, wordt nergens geïmporteerd) — alle rich-text bewerking loopt in de praktijk via SunEditor.'
+), italic=True, size=9)
 
 heading(doc, '5.4 Kaartintegratie (Leaflet)', level=2)
 bullet(doc, '14 WMS-lagen beschikbaar (zeekaarten, IENC, bathymetrie, enz.).')
@@ -506,11 +534,11 @@ heading(doc, '6.4 Meldingen – bronnen en invoerkanalen', level=2)
 
 two_col_table(doc,
     rows=[
-        ('REST-API',        'Automatische bevraging van nautische bericht-API\'s (MRCC, BASS, POAB, FLARIS NtS) — configuratie aanwezig, import in ontwikkeling'),
-        ('Mailbox',         'Automatisch inlezen uit nautinfo@mow.vlaanderen.be — Nodemailer geconfigureerd, import in ontwikkeling'),
-        ('Handmatige invoer','Formulier + drag-and-drop van mails; velden automatisch ingevuld uit mail-metadata; bijlagen meeopgeslagen'),
+        ('REST-API',        'Automatische bevraging van nautische bericht-API\'s (MRCC, BASS, POAB, FLARIS NtS) — alleen .env-configuratie aanwezig, geen implementatie'),
+        ('Mailbox',         'Automatisch inlezen uit nautinfo@mow.vlaanderen.be — nodemailer staat als dependency maar wordt nergens aangeroepen; geen implementatie'),
+        ('Handmatige invoer','Formulier + drag-and-drop van .msg/.eml-bestanden, client-side geparsed (msgreader/postal-mime); velden automatisch ingevuld uit mail-metadata; bijlagen meeopgeslagen'),
         ('BaZ1-berichten',  'Gepubliceerde BaZ1-artikels overgenomen als nieuwe melding voor het volgende jaar'),
-        ('Pushberichten',   'Wrakkendatabank, POSEIDON peilingen — gepland'),
+        ('Pushberichten',   'Wrakkendatabank, POSEIDON peilingen — gepland, nog geen implementatie'),
     ],
     header=['Kanaal', 'Status / Beschrijving'],
     col_widths=[1.8, 5.0],
@@ -541,11 +569,12 @@ features_notif = [
     'Automatische taak-aanmaak bij "Ja"-beslissing',
     'Producten koppelen (manueel) en automatisch detecteren (PostGIS)',
     'Paginering',
-    'Bijlagen uploaden (drag & drop, max 10 MB), beheren en downloaden',
+    'Bijlagen uploaden (drag & drop, max 50 MB, incl. CAD/GIS-formaten), beheren en downloaden',
     'Detailpagina met Leaflet-kaart (14 WMS-lagen)',
     'Inklapbare lijstitems met volledige details',
     'SunEditor WYSIWYG-editor voor toelichtingsveld',
     'Commentaarsysteem (toevoegen, bewerken, verwijderen)',
+    'Informatie-aanvragen bijhouden (metadata, geen automatische verzending)',
     'Extra coördinaten toevoegen (DD/DDM/DMS/geprojecteerd) + GML-export',
     'Automatische zone-detectie + manuele zone-beheer',
     'Zone-badges (blauw = automatisch, oranje = manueel)',
@@ -602,6 +631,15 @@ features_pv = [
 for f in features_pv:
     bullet(doc, f'✅  {f}')
 
+heading(doc, '7.5 Dashboard & doorlooptijden', level=2)
+features_dash = [
+    'Persoonlijke dashboard-notities met prioriteit (laag/gemiddeld/hoog), zichtbaar per gekozen productielijn(en)',
+    'Doorlooptijden-pagina (/lead-times): gemiddelde verwerkingsduur van taken per productielijn en status',
+    'Statusverdeling van taken als taartdiagram (TaskCharts)',
+]
+for f in features_dash:
+    bullet(doc, f'✅  {f}')
+
 doc.add_paragraph()
 add_horizontal_rule(doc)
 doc.add_paragraph()
@@ -627,8 +665,9 @@ todo_p2 = [
     ('✅', 'Bulk-acties op meldingen (bulk-decide endpoint)'),
     ('✅', 'Exportfunctionaliteit (Shapefile via JSZip + shp-write)'),
     ('✅', 'BaZ1-artikelenbeheer + Google Translate-vertaling'),
-    ('⚠️', 'Automatische mail-import (nautinfo mailbox) — Nodemailer geconfigureerd, import nog niet volledig'),
-    ('⚠️', 'REST API-integraties (MRCC, BASS, POAB, FLARIS) — .env-configuratie aanwezig, endpoints in ontwikkeling'),
+    ('✅', 'Doorlooptijden-dashboard (/lead-times, GET /api/tasks/lead-times)'),
+    ('⚠️', 'Automatische mail-import (nautinfo mailbox) — alleen .env-configuratie; nodemailer is niet ge\u00efmplementeerd. Handmatige drag-and-drop van .msg/.eml is wel volledig functioneel.'),
+    ('⚠️', 'REST API-integraties (MRCC, BASS, POAB, FLARIS) — alleen .env-configuratie aanwezig, geen endpoints/polling ge\u00efmplementeerd'),
 ]
 for status, desc in todo_p2:
     bullet(doc, f'{status}  {desc}')
@@ -636,7 +675,6 @@ for status, desc in todo_p2:
 heading(doc, '8.3 Nice-to-have (Prio 3)', level=2)
 todo_p3 = [
     'Pushberichten (Wrakkendatabank, POSEIDON)',
-    'Doorlooptijden-tracking (tijdregistratie/flow)',
     'E-mailnotificaties',
     'Gebruikersbeheer UI',
     'Geavanceerde filtering',
@@ -673,11 +711,12 @@ two_col_table(doc,
     rows=[
         ('CARIS HPD',           'Synchronisatie van projectgegevens; HPDProjectService + dedicated endpoints. Status: geïmplementeerd.'),
         ('Google Cloud Translate', 'Automatische vertaling van BaZ-artikelen. Status: geïmplementeerd.'),
-        ('Nautinfo mailbox',    'nautinfo@mow.vlaanderen.be — Nodemailer geconfigureerd; automatische import in ontwikkeling.'),
-        ('MRCC Oostende (MSI)', 'Maritime Safety Information API; .env-configuratie aanwezig; endpoints in ontwikkeling.'),
-        ('VTS Scheldt (BASS)',  'Bekendmaking aan de Scheepvaart Scheldegebied; in ontwikkeling.'),
-        ('Port of Antwerp-Bruges (POAB)', 'Nautische berichten; in ontwikkeling.'),
-        ('EuRIS (FLARIS NtS)',  'Inland waterway notices; in ontwikkeling.'),
+        ('Supabase (PostgreSQL + Storage)', 'Database-hosting (PostGIS) en bijlage-opslag in productie. Status: geïmplementeerd.'),
+        ('Nautinfo mailbox',    'nautinfo@mow.vlaanderen.be — nodemailer staat als dependency, maar er is geen mailbox-integratie geïmplementeerd. Status: niet geïmplementeerd (enkel .env-plek voorzien).'),
+        ('MRCC Oostende (MSI)', 'Maritime Safety Information API; .env-configuratie aanwezig; geen implementatie.'),
+        ('VTS Scheldt (BASS)',  'Bekendmaking aan de Scheepvaart Scheldegebied; geen implementatie.'),
+        ('Port of Antwerp-Bruges (POAB)', 'Nautische berichten; geen implementatie.'),
+        ('EuRIS (FLARIS NtS)',  'Inland waterway notices; geen implementatie.'),
         ('Wrakkendatabank',     'Pushberichten voor wrakaanpassingen; gepland.'),
         ('POSEIDON / CARIS BDB','Peilinformatie (GML/XML); gepland.'),
     ],
@@ -693,9 +732,15 @@ doc.add_paragraph()
 
 heading(doc, '10. Installatie & Opstarten', level=1)
 
+para(doc, (
+    'De productieomgeving draait op Vercel (serverless API + statische front-end build), met de database '
+    'en bijlage-opslag op Supabase. Onderstaande stappen beschrijven een lokale ontwikkelopstelling '
+    'tegen een eigen PostgreSQL-instantie of tegen een Supabase-project.'
+))
+
 heading(doc, '10.1 Vereisten', level=2)
 bullet(doc, 'Node.js 20+')
-bullet(doc, 'PostgreSQL 15+ met PostGIS extensie')
+bullet(doc, 'PostgreSQL 15+ met PostGIS extensie (lokaal, of een Supabase-project)')
 bullet(doc, 'Python 3 (optioneel, voor analysescripts)')
 bullet(doc, 'Windows (scripts beschikbaar als .ps1 en .bat)')
 
@@ -727,10 +772,10 @@ for ri, (step, action, cmd) in enumerate(steps):
             set_cell_bg(cell, 'EEF4FB')
 
 heading(doc, '10.3 Toegang', level=2)
-bullet(doc, 'Frontend: http://localhost:5173')
-bullet(doc, 'Backend API: http://localhost:3000')
+bullet(doc, 'Frontend (lokaal): http://localhost:5173')
+bullet(doc, 'Backend API (lokaal): http://localhost:3000')
 bullet(doc, 'Health check: http://localhost:3000/health')
-bullet(doc, 'Standaard login: test@cartis.be / test123')
+bullet(doc, 'Productieomgeving: Vercel-deployment gekoppeld aan het Supabase-project (zie VERCEL_*.md / DEPLOYMENT.md)')
 
 doc.add_paragraph()
 add_horizontal_rule(doc)
@@ -744,21 +789,22 @@ para(doc, (
     'CARTIS 2.0 is een volledig functionele webapplicatie voor de administratieve opvolging van '
     'nautische meldingen bij Vlaamse Hydrografie. De applicatie dekt de vier kernprocessen '
     '(Meldingen, Taken, Productversies, Publicaties) voor vier productielijnen (ZK, IENC, PILOT_ENC, PUBL). '
-    'De technische stack — Node.js/Express back-end met PostgreSQL/PostGIS en React/TypeScript front-end — '
-    'biedt een solide basis voor verdere uitbreiding.'
+    'De technische stack — Node.js/Express back-end met PostgreSQL/PostGIS op Supabase en een React/TypeScript '
+    'front-end, gedeployed op Vercel — biedt een solide basis voor verdere uitbreiding.'
 ))
 
 doc.add_paragraph()
 
 para(doc, 'Sterke punten van de huidige implementatie:', bold=True)
 strengths = [
-    'Volledig operationele monorepo met gescheiden back-end en front-end',
-    'Robuust databaseschema (20+ tabellen) met audit trail en rol-gebaseerde rechten',
-    '70+ REST-endpoints met JWT-beveiliging en parameterized queries',
+    'Volledig operationele monorepo met gescheiden back-end en front-end, in productie op Vercel + Supabase',
+    'Robuust databaseschema (24+ tabellen) met audit trail en rol-gebaseerde rechten',
+    '78+ REST-endpoints met JWT-beveiliging en parameterized queries',
     'Ruimtelijke functionaliteit via PostGIS (zone-detectie, product-overlap)',
     'Rijke front-end met interactieve Leaflet-kaarten, 14 WMS-lagen en coördinaatvarianten',
     'KML-import voor producten, shapefile-export voor coördinaten',
     'CARIS HPD-koppeling en Google Translate-integratie voor meertalige artikelen',
+    'Doorlooptijden-dashboard en persoonlijke dashboard-notities',
     'Uitgebreide documentatie (README, PROJECT_STATUS, DEVELOPMENT, ZONE_DETECTION, PRODUCTS_*)',
 ]
 for s in strengths:
@@ -767,12 +813,14 @@ for s in strengths:
 doc.add_paragraph()
 para(doc, 'Aandachtspunten voor de volgende fase:', bold=True)
 attentions = [
-    'Implementeer rate limiting en volledige input sanitization (OWASP Prio)',
-    'Automatische mail-import en REST API-integraties (MRCC, BASS, POAB, FLARIS) voltooien',
+    'Implementeer rate limiting en volledige input sanitization (express-validator is aanwezig als dependency maar wordt nergens gebruikt) (OWASP Prio)',
+    'CSRF-beveiliging toevoegen',
+    'Automatische mail-import en REST API-integraties (MRCC, BASS, POAB, FLARIS) zijn nog niet gestart (enkel .env-configuratie aanwezig)',
     'Unit- en integratietests toevoegen',
     'CI/CD-pipeline en Docker-containerisatie opzetten',
     'Swagger/OpenAPI-documentatie genereren',
-    'Doorlooptijden-tracking en pushberichten (Wrakkendatabank, POSEIDON) plannen',
+    'Pushberichten (Wrakkendatabank, POSEIDON) plannen',
+    'Opruimen van dode code (bv. lege QuillEditor.tsx-component)',
 ]
 for a in attentions:
     bullet(doc, f'🔲  {a}')
@@ -782,7 +830,7 @@ doc.add_paragraph()
 
 footer_p = doc.add_paragraph()
 footer_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-run = footer_p.add_run('CARTIS 2.0 — Analyse & Technische Documentatie — April 2026 — Vlaamse Hydrografie')
+run = footer_p.add_run('CARTIS 2.0 — Analyse & Technische Documentatie — April 2026 (bijgewerkt augustus 2026) — Vlaamse Hydrografie')
 run.font.size = Pt(9)
 run.font.color.rgb = RGBColor(0x88, 0x88, 0x88)
 run.italic = True
