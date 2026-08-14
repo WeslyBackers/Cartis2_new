@@ -1236,39 +1236,66 @@ router.post('/bulk-decide', authenticate, async (req: AuthRequest, res) => {
       }
 
       if (taskMode === 'combined') {
-        // Create ONE task for ALL notifications
-        const year = new Date().getFullYear().toString().slice(-2);
-        const sequenceResult = await pool.query(
-          `SELECT COALESCE(MAX(CAST(SUBSTRING(task_number FROM 3) AS INTEGER)), 0) + 1 as next_seq
-           FROM tasks WHERE task_number LIKE $1`,
-          [`${year}%`]
-        );
-        const sequence = sequenceResult.rows[0].next_seq.toString().padStart(4, '0');
-        const taskNumber = `${year}${sequence}`;
-
-        // Get all notification titles to create a combined title
-        const notifResult = await pool.query(
-          'SELECT id, title FROM notifications WHERE id = ANY($1)',
+        // Reuse an existing task already linked to any of these notifications
+        // (e.g. one of them was decided 'Ja' before for another production line)
+        // instead of always creating a brand new one, matching the behaviour of
+        // the single-decide and 'individual' bulk-decide flows.
+        const existingTaskResult = await pool.query(
+          `SELECT t.id
+           FROM tasks t
+           INNER JOIN task_notifications tn ON tn.task_id = t.id
+           WHERE tn.notification_id = ANY($1)
+           ORDER BY t.created_at ASC
+           LIMIT 1`,
           [notificationIds]
         );
-        
-        const combinedTitle = `Gecombineerde taak: ${notifResult.rows.map((n: any) => n.title).join(', ')}`;
 
-        // Create one task
-        const taskResult = await pool.query(
-          `INSERT INTO tasks 
-            (task_number, title, production_line_id, created_by)
-          VALUES ($1, $2, $3, $4)
-          RETURNING *`,
-          [taskNumber, combinedTitle.substring(0, 500), productionLineId, userId]
-        );
+        let taskId: number;
+        let taskNumber: string;
+        let createdNewTask = false;
 
-        const taskId = taskResult.rows[0].id;
+        if (existingTaskResult.rows.length > 0) {
+          taskId = existingTaskResult.rows[0].id;
+          const existingTaskRow = await pool.query('SELECT task_number FROM tasks WHERE id = $1', [taskId]);
+          taskNumber = existingTaskRow.rows[0].task_number;
+        } else {
+          // Create ONE task for ALL notifications
+          const year = new Date().getFullYear().toString().slice(-2);
+          const sequenceResult = await pool.query(
+            `SELECT COALESCE(MAX(CAST(SUBSTRING(task_number FROM 3) AS INTEGER)), 0) + 1 as next_seq
+             FROM tasks WHERE task_number LIKE $1`,
+            [`${year}%`]
+          );
+          const sequence = sequenceResult.rows[0].next_seq.toString().padStart(4, '0');
+          taskNumber = `${year}${sequence}`;
+
+          // Get all notification titles to create a combined title
+          const notifResult = await pool.query(
+            'SELECT id, title FROM notifications WHERE id = ANY($1)',
+            [notificationIds]
+          );
+
+          const combinedTitle = `Gecombineerde taak: ${notifResult.rows.map((n: any) => n.title).join(', ')}`;
+
+          // Create one task
+          const taskResult = await pool.query(
+            `INSERT INTO tasks 
+              (task_number, title, production_line_id, created_by)
+            VALUES ($1, $2, $3, $4)
+            RETURNING *`,
+            [taskNumber, combinedTitle.substring(0, 500), productionLineId, userId]
+          );
+
+          taskId = taskResult.rows[0].id;
+          createdNewTask = true;
+        }
 
         // Link all notifications to this task
         for (const notifId of notificationIds) {
           await pool.query(
-            'INSERT INTO task_notifications (task_id, notification_id) VALUES ($1, $2)',
+            `INSERT INTO task_notifications (task_id, notification_id)
+             VALUES ($1, $2)
+             ON CONFLICT (task_id, notification_id) DO NOTHING`,
             [taskId, notifId]
           );
         }
@@ -1335,17 +1362,22 @@ router.post('/bulk-decide', authenticate, async (req: AuthRequest, res) => {
              CASE WHEN EXISTS (
                SELECT 1 FROM production_lines pl WHERE pl.id = $2 AND pl.code = 'PILOT_ENC'
              ) THEN TRUE ELSE FALSE END
-           )`,
+           )
+           ON CONFLICT (task_id, production_line_id) DO NOTHING`,
           [taskId, productionLineId, 'under_construction']
         );
 
-        // Log activity
-        await pool.query(
-          'INSERT INTO activity_log (entity_type, entity_id, action, user_id) VALUES ($1, $2, $3, $4)',
-          ['task', taskId, 'created', userId]
-        );
+        if (createdNewTask) {
+          // Log activity only when a new task is created.
+          await pool.query(
+            'INSERT INTO activity_log (entity_type, entity_id, action, user_id) VALUES ($1, $2, $3, $4)',
+            ['task', taskId, 'created', userId]
+          );
+        }
 
-        // Create HPD project for IENC/ZK production lines
+        // Create HPD project for IENC/ZK production lines. Not gated on createdNewTask:
+        // a reused task can gain a new production line via this combined decision, and
+        // createHpdProjectForTask is idempotent (ON CONFLICT DO NOTHING).
         await createHpdProjectForTask(taskId, taskNumber, productionLineId);
 
       } else if (taskMode === 'individual') {
