@@ -21,18 +21,18 @@
 -- 1. Insert the user (default_production_line_id left NULL, fixed by the UPDATE below)
 INSERT INTO users (email, password_hash, first_name, last_name, default_production_line_id, is_active)
 VALUES (
-  'ilse.laeremans@mow.vlaanderen.be',
-  '$2a$12$fSDECHeEi1PNBDh62zWSC.wGVqPDHrLppcgCRfDgLsg5ckvYP/5MC', -- password shs
-  'Ilse',
-  'Laeremans',
-  NULL,  -- set automatically by the UPDATE in step 5, based on the rights granted below
+  'peter.vlietinck@mow.vlaanderen.be',
+  '$2a$12$G.NFfs8v5uJP.S9FmAvr8OTHnN20I5OBotZWMxaR3JyseXfA62u2C', -- password shs
+  'Peter',
+  'Vlietinck',
+  1,  -- set automatically by the UPDATE in step 5, based on the rights granted below
   true
 );
 
 -- 2. Grant rights per production line (repeat for each line the user needs)
 INSERT INTO user_production_line_rights (user_id, production_line_id, can_view, can_edit, can_publish)
 VALUES (
-  (SELECT id FROM users WHERE email = 'ilse.laeremans@mow.vlaanderen.be'),
+  (SELECT id FROM users WHERE email = 'peter.vlietinck@mow.vlaanderen.be'),
   2,      -- production_line_id
   true,   -- can_view
   true,   -- can_edit
@@ -42,7 +42,7 @@ VALUES (
 -- 3. Grant rights per production line (repeat for each line the user needs)
 INSERT INTO user_production_line_rights (user_id, production_line_id, can_view, can_edit, can_publish)
 VALUES (
-  (SELECT id FROM users WHERE email = 'ilse.laeremans@mow.vlaanderen.be'),
+  (SELECT id FROM users WHERE email = 'peter.vlietinck@mow.vlaanderen.be'),
   3,      -- production_line_id
   true,   -- can_view
   true,   -- can_edit
@@ -52,7 +52,7 @@ VALUES (
 -- 4. Grant rights per production line (repeat for each line the user needs)
 INSERT INTO user_production_line_rights (user_id, production_line_id, can_view, can_edit, can_publish)
 VALUES (
-  (SELECT id FROM users WHERE email = 'ilse.laeremans@mow.vlaanderen.be'),
+  (SELECT id FROM users WHERE email = 'peter.vlietinck@mow.vlaanderen.be'),
   4,      -- production_line_id
   true,   -- can_view
   true,   -- can_edit
@@ -71,4 +71,4 @@ SET default_production_line_id = (
   ORDER BY r.production_line_id
   LIMIT 1
 )
-WHERE u.email = 'ilse.laeremans@mow.vlaanderen.be';
+WHERE u.email = 'peter.vlietinck@mow.vlaanderen.be';
