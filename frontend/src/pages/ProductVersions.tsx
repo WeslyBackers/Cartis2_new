@@ -17,6 +17,18 @@ const getTaskStatusLabel = (status: string) => {
   return status || '-';
 };
 
+const getTaskStatusStyles = (status: string | null | undefined) => ({
+  backgroundColor:
+    status === 'voltooid'
+      ? '#d4edda'
+      : status === 'in_inspectie'
+      ? '#cce5ff'
+      : status === 'hoog_te_verwerken'
+      ? '#f8d7da'
+      : '#fff3cd',
+  color: '#343a40',
+});
+
 const sanitizeHtmlForDisplay = (html: string): string => {
   if (!html) return '';
 
@@ -1304,7 +1316,18 @@ export default function ProductVersions() {
                         isPublLine ? (task.baz_articles || task.baz_number || '-') : (task.baz_number || '-')
                       )}
                     </td>
-                    <td>{getTaskStatusLabel(task.status)}</td>
+                    <td>
+                      <span
+                        style={{
+                          display: 'inline-block',
+                          padding: '0.25rem 0.5rem',
+                          borderRadius: '4px',
+                          ...getTaskStatusStyles(task.status),
+                        }}
+                      >
+                        {getTaskStatusLabel(task.status)}
+                      </span>
+                    </td>
                     <td>
                       <select
                         value={task.execution_status || 'not_executed'}
