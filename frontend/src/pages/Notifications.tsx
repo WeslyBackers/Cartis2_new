@@ -618,6 +618,7 @@ const WMS_LAYERS = [
 ];
 
 const NOTIFICATION_SOURCE_OPTIONS = [
+  'MRCC (MSI Maritiem Reddings- en Coördinatiecentrum)',
   'FRHO (Franse Hydrografische Dienst)',
   'GNA (Gemeenschappelijk Nautische Autoriteit)',
   'PoO (Port of Ostend)',
