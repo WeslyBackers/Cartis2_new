@@ -555,6 +555,15 @@ export default function NotificationDetail() {
   const isZK = currentProductionLineId === 1;
   const [notes, setNotes] = useState('');
   const [opmerkingen, setOpmerkingen] = useState('');
+  const [isEditingNotification, setIsEditingNotification] = useState(false);
+  const [notificationDraft, setNotificationDraft] = useState({
+    code: '',
+    title: '',
+    source: '',
+    sourceDetail: '',
+    notificationDate: '',
+    content: '',
+  });
   const [isEditingOpmerkingen, setIsEditingOpmerkingen] = useState(false);
   const [collapsedProductionLines, setCollapsedProductionLines] = useState<Set<number>>(new Set());
   const [collapsedActivities, setCollapsedActivities] = useState(false);
@@ -655,11 +664,54 @@ export default function NotificationDetail() {
   });
 
   // Set opmerkingen when notification loads or updates
+  const hasLinkedTask = Array.isArray(notification?.tasks) && notification.tasks.length > 0;
+  const canEditNotification = !hasLinkedTask;
+
   useEffect(() => {
     if (notification) {
       setOpmerkingen(notification.opmerkingen || '');
+      setNotificationDraft({
+        code: notification.code || '',
+        title: notification.title || '',
+        source: notification.source || '',
+        sourceDetail: notification.source_detail || '',
+        notificationDate: notification.notification_date || '',
+        content: notification.content || '',
+      });
     }
   }, [notification]);
+
+  const updateNotificationMutation = useMutation({
+    mutationFn: async () => {
+      if (!canEditNotification) {
+        throw new Error('Melding kan niet worden aangepast zolang er een taak aan gekoppeld is.');
+      }
+
+      const response = await api.put(`/notifications/${id}`, {
+        code: notificationDraft.code,
+        title: notificationDraft.title,
+        source: notificationDraft.source,
+        sourceDetail: notificationDraft.sourceDetail,
+        notificationDate: notificationDraft.notificationDate,
+        content: notificationDraft.content,
+        geometry: notification.geometry,
+        metadata: notification.metadata,
+        opmerkingen: notification.opmerkingen || '',
+      });
+
+      return response.data;
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['notification', id] });
+      await queryClient.refetchQueries({ queryKey: ['notification', id] });
+      setIsEditingNotification(false);
+      alert('Melding succesvol opgeslagen!');
+    },
+    onError: (error: any) => {
+      console.error('Error updating notification:', error);
+      alert(`Fout bij opslaan melding: ${getApiErrorMessage(error, 'Melding kan niet worden aangepast zolang er een taak aan gekoppeld is.')}`);
+    },
+  });
 
   const commentMutation = useMutation({
     mutationFn: async () => {
@@ -1111,6 +1163,10 @@ export default function NotificationDetail() {
 
   const infoRequestDraft = buildNotificationInfoRequestDraft(notification);
 
+  const handleNotificationFieldChange = (field: keyof typeof notificationDraft, value: string) => {
+    setNotificationDraft(prev => ({ ...prev, [field]: value }));
+  };
+
   const openInfoRequestForm = () => {
     setEmailRecipient(infoRequestDraft.recipient);
     setEmailSubject(infoRequestDraft.subject);
@@ -1204,47 +1260,150 @@ export default function NotificationDetail() {
             <h2 style={{ marginBottom: '1rem', color: '#343a40' }}>Basisinformatie</h2>
             
             <div style={{ display: 'grid', gap: '1rem' }}>
-              <div>
-                <label style={{ fontWeight: 'bold', color: '#6c757d', display: 'block', marginBottom: '0.25rem' }}>Code</label>
-                <div style={{ color: '#343a40', fontSize: '1.1rem', fontWeight: '600' }}>{notification.code || '-'}</div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem' }}>
+                <label style={{ fontWeight: 'bold', color: '#6c757d', display: 'block' }}>Basisgegevens</label>
+                {canEditNotification ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (isEditingNotification) {
+                        updateNotificationMutation.mutate();
+                        return;
+                      }
+                      setIsEditingNotification(true);
+                    }}
+                    disabled={updateNotificationMutation.isPending}
+                    style={{
+                      padding: '0.4rem 0.8rem',
+                      backgroundColor: isEditingNotification ? '#28a745' : '#0066cc',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: updateNotificationMutation.isPending ? 'not-allowed' : 'pointer',
+                      fontSize: '0.9rem',
+                    }}
+                  >
+                    {updateNotificationMutation.isPending ? 'Opslaan...' : isEditingNotification ? 'Opslaan' : 'Bewerken'}
+                  </button>
+                ) : (
+                  <span style={{ fontSize: '0.85rem', color: '#b23c17', fontWeight: 600 }}>
+                    Lock: gekoppelde taak
+                  </span>
+                )}
               </div>
 
-              <div>
-                <label style={{ fontWeight: 'bold', color: '#6c757d', display: 'block', marginBottom: '0.25rem' }}>Omschrijving/Titel</label>
-                <div style={{ color: '#343a40', fontSize: '1.1rem' }}>{notification.title}</div>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                <div>
-                  <label style={{ fontWeight: 'bold', color: '#6c757d', display: 'block', marginBottom: '0.25rem' }}>Datum Bericht</label>
-                  <div style={{ color: '#343a40' }}>
-                    {notification.notification_date 
-                      ? format(new Date(notification.notification_date), 'dd/MM/yyyy')
-                      : '-'}
+              {isEditingNotification && canEditNotification ? (
+                <>
+                  <div>
+                    <label style={{ fontWeight: 'bold', color: '#6c757d', display: 'block', marginBottom: '0.25rem' }}>Code</label>
+                    <input
+                      value={notificationDraft.code}
+                      onChange={(e) => handleNotificationFieldChange('code', e.target.value)}
+                      style={{ width: '100%', padding: '0.5rem 0.75rem', borderRadius: '4px', border: '1px solid #ced4da' }}
+                    />
                   </div>
-                </div>
 
-                <div>
-                  <label style={{ fontWeight: 'bold', color: '#6c757d', display: 'block', marginBottom: '0.25rem' }}>Ontvangen</label>
-                  <div style={{ color: '#343a40' }}>
-                    {notification.received_date 
-                      ? format(new Date(notification.received_date), 'dd/MM/yyyy HH:mm')
-                      : '-'}
+                  <div>
+                    <label style={{ fontWeight: 'bold', color: '#6c757d', display: 'block', marginBottom: '0.25rem' }}>Omschrijving/Titel</label>
+                    <input
+                      value={notificationDraft.title}
+                      onChange={(e) => handleNotificationFieldChange('title', e.target.value)}
+                      style={{ width: '100%', padding: '0.5rem 0.75rem', borderRadius: '4px', border: '1px solid #ced4da' }}
+                    />
                   </div>
-                </div>
-              </div>
 
-<div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                <div>
-                  <label style={{ fontWeight: 'bold', color: '#6c757d', display: 'block', marginBottom: '0.25rem' }}>Bron</label>
-                  <div style={{ color: '#343a40' }}>{notification.source || '-'}</div>
-                </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                    <div>
+                      <label style={{ fontWeight: 'bold', color: '#6c757d', display: 'block', marginBottom: '0.25rem' }}>Datum Bericht</label>
+                      <input
+                        type="date"
+                        value={notificationDraft.notificationDate}
+                        onChange={(e) => handleNotificationFieldChange('notificationDate', e.target.value)}
+                        style={{ width: '100%', padding: '0.5rem 0.75rem', borderRadius: '4px', border: '1px solid #ced4da' }}
+                      />
+                    </div>
 
-                <div>
-                  <label style={{ fontWeight: 'bold', color: '#6c757d', display: 'block', marginBottom: '0.25rem' }}>Bron Detail</label>
-                  <div style={{ color: '#343a40' }}>{notification.source_detail || '-'}</div>
+                    <div>
+                      <label style={{ fontWeight: 'bold', color: '#6c757d', display: 'block', marginBottom: '0.25rem' }}>Ontvangen</label>
+                      <div style={{ color: '#343a40' }}>
+                        {notification.received_date 
+                          ? format(new Date(notification.received_date), 'dd/MM/yyyy HH:mm')
+                          : '-'}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                    <div>
+                      <label style={{ fontWeight: 'bold', color: '#6c757d', display: 'block', marginBottom: '0.25rem' }}>Bron</label>
+                      <input
+                        value={notificationDraft.source}
+                        onChange={(e) => handleNotificationFieldChange('source', e.target.value)}
+                        style={{ width: '100%', padding: '0.5rem 0.75rem', borderRadius: '4px', border: '1px solid #ced4da' }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ fontWeight: 'bold', color: '#6c757d', display: 'block', marginBottom: '0.25rem' }}>Bron Detail</label>
+                      <input
+                        value={notificationDraft.sourceDetail}
+                        onChange={(e) => handleNotificationFieldChange('sourceDetail', e.target.value)}
+                        style={{ width: '100%', padding: '0.5rem 0.75rem', borderRadius: '4px', border: '1px solid #ced4da' }}
+                      />
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div>
+                    <label style={{ fontWeight: 'bold', color: '#6c757d', display: 'block', marginBottom: '0.25rem' }}>Code</label>
+                    <div style={{ color: '#343a40', fontSize: '1.1rem', fontWeight: '600' }}>{notification.code || '-'}</div>
+                  </div>
+
+                  <div>
+                    <label style={{ fontWeight: 'bold', color: '#6c757d', display: 'block', marginBottom: '0.25rem' }}>Omschrijving/Titel</label>
+                    <div style={{ color: '#343a40', fontSize: '1.1rem' }}>{notification.title}</div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                    <div>
+                      <label style={{ fontWeight: 'bold', color: '#6c757d', display: 'block', marginBottom: '0.25rem' }}>Datum Bericht</label>
+                      <div style={{ color: '#343a40' }}>
+                        {notification.notification_date 
+                          ? format(new Date(notification.notification_date), 'dd/MM/yyyy')
+                          : '-'}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label style={{ fontWeight: 'bold', color: '#6c757d', display: 'block', marginBottom: '0.25rem' }}>Ontvangen</label>
+                      <div style={{ color: '#343a40' }}>
+                        {notification.received_date 
+                          ? format(new Date(notification.received_date), 'dd/MM/yyyy HH:mm')
+                          : '-'}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                    <div>
+                      <label style={{ fontWeight: 'bold', color: '#6c757d', display: 'block', marginBottom: '0.25rem' }}>Bron</label>
+                      <div style={{ color: '#343a40' }}>{notification.source || '-'}</div>
+                    </div>
+
+                    <div>
+                      <label style={{ fontWeight: 'bold', color: '#6c757d', display: 'block', marginBottom: '0.25rem' }}>Bron Detail</label>
+                      <div style={{ color: '#343a40' }}>{notification.source_detail || '-'}</div>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {!canEditNotification && (
+                <div style={{ padding: '0.75rem 1rem', backgroundColor: '#fff3e0', border: '1px solid #ffcc80', borderRadius: '6px', color: '#8a4b00', fontSize: '0.9rem' }}>
+                  Deze melding is vergrendeld omdat er al een taak aan is gekoppeld. Aanpassingen zijn niet meer mogelijk.
                 </div>
-              </div>
+              )}
 
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>

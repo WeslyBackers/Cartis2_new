@@ -930,6 +930,17 @@ router.put('/:id', authenticate, async (req: AuthRequest, res) => {
 
     console.log('[PUT /notifications/:id] Updating notification ID:', id);
 
+    const linkedTaskResult = await pool.query(
+      'SELECT 1 FROM task_notifications WHERE notification_id = $1 LIMIT 1',
+      [id]
+    );
+
+    if (linkedTaskResult.rows.length > 0) {
+      return res.status(409).json({
+        error: 'Melding kan niet worden aangepast zolang er een taak aan gekoppeld is.',
+      });
+    }
+
     // Handle multiple geometries: if geometries array is provided, convert to FeatureCollection
     let finalGeometry = geometry;
     if (geometries) {
