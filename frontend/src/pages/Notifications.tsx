@@ -1902,12 +1902,20 @@ export default function Notifications() {
                 <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '0.5rem' }}>
                   Inhoud
                 </label>
-                <textarea
-                  value={newNotification.content}
-                  onChange={(e) => setNewNotification({ ...newNotification, content: e.target.value })}
+                <SunEditor
+                  setContents={newNotification.content}
+                  onChange={(content) => setNewNotification({ ...newNotification, content })}
                   placeholder="Inhoud van de melding"
-                  rows={5}
-                  style={{ width: '100%', fontFamily: 'inherit' }}
+                  height="200px"
+                  setOptions={{
+                    buttonList: [
+                      ['bold', 'italic', 'underline'],
+                      ['list'],
+                      ['table'],
+                      ['link', 'image'],
+                      ['blockquote']
+                    ]
+                  }}
                 />
               </div>
 
@@ -1915,12 +1923,20 @@ export default function Notifications() {
                 <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '0.5rem' }}>
                   Opmerkingen
                 </label>
-                <textarea
-                  value={newNotification.opmerkingen}
-                  onChange={(e) => setNewNotification({ ...newNotification, opmerkingen: e.target.value })}
+                <SunEditor
+                  setContents={newNotification.opmerkingen}
+                  onChange={(opmerkingen) => setNewNotification({ ...newNotification, opmerkingen })}
                   placeholder="Extra opmerkingen"
-                  rows={3}
-                  style={{ width: '100%', fontFamily: 'inherit' }}
+                  height="200px"
+                  setOptions={{
+                    buttonList: [
+                      ['bold', 'italic', 'underline'],
+                      ['list'],
+                      ['table'],
+                      ['link', 'image'],
+                      ['blockquote']
+                    ]
+                  }}
                 />
               </div>
 
