@@ -104,14 +104,8 @@ const parseCoordinateList = (rawValue: string): number[][] => {
   return pairs;
 };
 
-const parsePosText = (node: any): number[] | null => {
-  const posText = node?.textContent || '';
-  const pairs = parseCoordinateList(posText);
-  if (pairs.length === 0) {
-    return null;
-  }
-
-  return [pairs[0][0], pairs[0][1]];
+const getNodeText = (node: any): string => {
+  return typeof (node as any)?.textContent === 'string' ? (node as any).textContent : '';
 };
 
 const collectGmlMembers = (node: any): any[] => {
@@ -174,7 +168,7 @@ const parseGmlGeometryNode = (node: any): any => {
       return name === 'pos' || name === 'coordinates';
     });
 
-    const posText = pointNode ? pointNode.textContent || '' : node.textContent || '';
+    const posText = pointNode ? getNodeText(pointNode) : getNodeText(node);
     const coords = parseCoordinateList(posText);
     const point = coords.length > 0 ? [coords[0][0], coords[0][1]] : null;
     if (!point) {
@@ -190,7 +184,7 @@ const parseGmlGeometryNode = (node: any): any => {
       return name === 'poslist' || name === 'coordinates';
     });
 
-    const raw = posListNode ? (posListNode.textContent || '') : node.textContent || '';
+    const raw = posListNode ? getNodeText(posListNode) : getNodeText(node);
     const coords = parseCoordinateList(raw);
     if (coords.length < 2) {
       return null;
@@ -201,7 +195,7 @@ const parseGmlGeometryNode = (node: any): any => {
 
   if (localName === 'linearring') {
     const raw = Array.from(node.childNodes || [])
-      .map((child: any) => (child && child.nodeType === 1 ? child.textContent || '' : ''))
+      .map((child: any) => (child && child.nodeType === 1 ? getNodeText(child) : ''))
       .join(' ');
     const coords = parseCoordinateList(raw);
     if (coords.length < 4) {
@@ -225,7 +219,7 @@ const parseGmlGeometryNode = (node: any): any => {
         });
 
         if (ringNode) {
-          const ringText = ringNode.textContent || '';
+          const ringText = getNodeText(ringNode);
           const ringCoords = parseCoordinateList(ringText);
           if (ringCoords.length >= 4) {
             rings.push(ringCoords);
