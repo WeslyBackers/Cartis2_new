@@ -15,6 +15,7 @@ import 'leaflet-draw';
 import FileUpload from '../components/FileUpload';
 import CoordinateField, { CoordFormatSelector, CoordFormat, isProjectedFormat, ProjectedCoordinateInput } from '../components/CoordinateInput';
 import { getApiErrorMessage } from '../utils/errorUtils';
+import { parseImportedGeometryText } from '../utils/geometryImport';
 
 // Fix for default marker icon in Leaflet
 import icon from 'leaflet/dist/images/marker-icon.png';
@@ -1063,6 +1064,59 @@ export default function NotificationDetail() {
   const handleShapeCreated = (geometry: any) => {
     setPendingGeometry(geometry);
     setShowCoordinateForm(true);
+  };
+
+  const handleImportedGeometryFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    try {
+      const text = await file.text();
+      const geometries = parseImportedGeometryText(file.name, text);
+
+      if (!geometries.length) {
+        alert('Het geselecteerde bestand bevat geen geldige KML/GML geometrie voor punten, lijnen of vlakken.');
+        event.target.value = '';
+        return;
+      }
+
+      if (geometries.length > 1) {
+        const label = file.name.replace(/\.[^.]+$/, '') || 'Geïmporteerde geometrie';
+        const baseDescription = `Geïmporteerd uit ${file.name}`;
+
+        for (let index = 0; index < geometries.length; index += 1) {
+          const geometry = geometries[index];
+          await addCoordinateMutation.mutateAsync({
+            geometry: JSON.stringify(geometry),
+            label: `${label} ${index + 1}`,
+            description: baseDescription,
+          });
+        }
+
+        event.target.value = '';
+        alert(`${geometries.length} geometrieën uit ${file.name} zijn toegevoegd aan de melding.`);
+        return;
+      }
+
+      const geometry = geometries[0];
+      setPendingGeometry(geometry);
+      setInputMode('single');
+      setDrawingMode('none');
+      setShowCoordinateForm(true);
+      setNewCoordinate((prev) => ({
+        ...prev,
+        label: file.name.replace(/\.[^.]+$/, '') || prev.label || 'Geïmporteerde geometrie',
+        description: `Geïmporteerd uit ${file.name}`,
+      }));
+      alert('Geometrie geïmporteerd. Controleer de gegevens en sla deze op als coördinaat.');
+    } catch (error) {
+      console.error('Error importing geometry file:', error);
+      alert('De geometrie kon niet worden ingelezen. Controleer of het bestand een geldig KML- of GML-bestand is.');
+    } finally {
+      event.target.value = '';
+    }
   };
 
   // Delete coordinate mutation
@@ -2738,6 +2792,17 @@ export default function NotificationDetail() {
                           >
                             ⬛ Gebied (handmatig)
                           </button>
+                        </div>
+                        <div style={{ marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid rgba(0,0,0,0.08)' }}>
+                          <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '0.5rem', fontSize: '0.85rem' }}>
+                            Of importeer een KML/GML bestand:
+                          </label>
+                          <input
+                            type="file"
+                            accept=".kml,.gml,.geojson,.xml"
+                            onChange={handleImportedGeometryFile}
+                            style={{ width: '100%', padding: '0.5rem', backgroundColor: '#fff', border: '1px solid #ced4da', borderRadius: '4px' }}
+                          />
                         </div>
                       </div>
                     )}
