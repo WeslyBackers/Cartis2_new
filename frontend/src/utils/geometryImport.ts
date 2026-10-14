@@ -3,6 +3,13 @@ import * as toGeoJSON from '@tmcw/togeojson';
 
 export type ParsedGeometry = Record<string, any>;
 
+export type ImportedGeometryItem = {
+  geometry: any;
+  name?: string;
+  description?: string;
+  properties?: Record<string, any>;
+};
+
 const asXmlDocument = (text: string) => {
   if (typeof globalThis.DOMParser !== 'undefined') {
     return new globalThis.DOMParser().parseFromString(text, 'text/xml');
@@ -310,7 +317,112 @@ const parseGmlDocument = (document: any): any[] => {
   });
 };
 
-export const parseImportedGeometryText = (fileName: string, text: string): ParsedGeometry[] => {
+const normalizeImportedString = (value: unknown): string | undefined => {
+  if (typeof value !== 'string') {
+    if (value === null || value === undefined) {
+      return undefined;
+    }
+
+    const normalized = String(value).trim();
+    return normalized || undefined;
+  }
+
+  const normalized = value.trim();
+  return normalized || undefined;
+};
+
+const buildImportedGeometryItem = (geometry: any, properties: Record<string, any> = {}): ImportedGeometryItem | null => {
+  if (!geometry || !geometry.type) {
+    return null;
+  }
+
+  const meta = properties && typeof properties === 'object' ? { ...properties } : {};
+  const name = normalizeImportedString(meta.name ?? meta.Name ?? meta.title ?? meta.label ?? meta.id ?? meta.identifier);
+  const description = normalizeImportedString(meta.description ?? meta.Description ?? meta.desc ?? meta.summary ?? meta.notes);
+
+  return {
+    geometry,
+    ...(name ? { name } : {}),
+    ...(description ? { description } : {}),
+    properties: meta,
+  };
+};
+
+const flattenImportedFeatures = (value: any): ImportedGeometryItem[] => {
+  if (!value) {
+    return [];
+  }
+
+  if (value.type === 'FeatureCollection') {
+    return (value.features || []).flatMap((feature: any) => flattenImportedFeatures(feature));
+  }
+
+  if (value.type === 'Feature') {
+    const geometry = value.geometry;
+    const properties = value.properties && typeof value.properties === 'object' ? { ...value.properties } : {};
+    const item = buildImportedGeometryItem(geometry, properties);
+    return item ? [item] : [];
+  }
+
+  if (value.type === 'GeometryCollection') {
+    return (value.geometries || []).flatMap((geometry: any) => flattenImportedFeatures(geometry));
+  }
+
+  if (value.type && value.coordinates !== undefined) {
+    const item = buildImportedGeometryItem(value, {});
+    return item ? [item] : [];
+  }
+
+  return [];
+};
+
+const extractMetadataFromNode = (node: any): Record<string, any> => {
+  const metadata: Record<string, any> = {};
+
+  const visit = (current: any) => {
+    if (!current || current.nodeType !== 1) {
+      return;
+    }
+
+    const localName = (current.localName || current.nodeName || '').toLowerCase();
+    const text = getNodeText(current).trim();
+
+    if (localName === 'name' && text) {
+      metadata.name = text;
+    }
+    if ((localName === 'description' || localName === 'desc') && text) {
+      metadata.description = text;
+    }
+    if ((localName === 'title' || localName === 'label') && text) {
+      metadata.title = text;
+    }
+    if (localName === 'id' && text) {
+      metadata.id = text;
+    }
+
+    Array.from(current.childNodes || []).forEach((child: any) => visit(child));
+  };
+
+  visit(node);
+
+  return metadata;
+};
+
+const findFeatureNodes = (node: any, nodes: any[] = []): any[] => {
+  if (!node || node.nodeType !== 1) {
+    return nodes;
+  }
+
+  const localName = (node.localName || node.nodeName || '').toLowerCase();
+  if (['placemark', 'featuremember', 'feature', 'member'].includes(localName)) {
+    nodes.push(node);
+  }
+
+  Array.from(node.childNodes || []).forEach((child: any) => findFeatureNodes(child, nodes));
+  return nodes;
+};
+
+export const parseImportedGeometryItems = (fileName: string, text: string): ImportedGeometryItem[] => {
   const trimmed = String(text || '').trim();
   if (!trimmed) {
     return [];
@@ -321,7 +433,7 @@ export const parseImportedGeometryText = (fileName: string, text: string): Parse
   if (normalizedName.endsWith('.geojson') || normalizedName.endsWith('.json') || trimmed.startsWith('{') || trimmed.startsWith('[')) {
     try {
       const parsed = JSON.parse(trimmed);
-      return flattenFeatures(parsed);
+      return flattenImportedFeatures(parsed);
     } catch {
       return [];
     }
@@ -336,25 +448,37 @@ export const parseImportedGeometryText = (fileName: string, text: string): Parse
     const rootName = (xmlDocument.documentElement.localName || xmlDocument.documentElement.nodeName || '').toLowerCase();
     if (rootName === 'kml' || normalizedName.endsWith('.kml') || trimmed.toLowerCase().includes('<kml')) {
       const parsed = toGeoJSON.kml(xmlDocument as any);
-      return flattenFeatures(parsed); 
+      return flattenImportedFeatures(parsed);
     }
 
     if (rootName.includes('gml') || normalizedName.endsWith('.gml') || trimmed.toLowerCase().includes('<gml')) {
-      return parseGmlDocument(xmlDocument);
+      const geometries = parseGmlDocument(xmlDocument);
+      const featureNodes = findFeatureNodes(xmlDocument.documentElement);
+
+      return geometries.map((geometry: any, index: number) => {
+        const metadata = featureNodes[index] ? extractMetadataFromNode(featureNodes[index]) : {};
+        const item = buildImportedGeometryItem(geometry, metadata);
+        return item ?? { geometry };
+      });
     }
 
     if (normalizedName.endsWith('.xml') || trimmed.toLowerCase().includes('<point') || trimmed.toLowerCase().includes('<polygon')) {
       const parsed = toGeoJSON.kml(xmlDocument as any);
-      const geometries = flattenFeatures(parsed);
-      if (geometries.length > 0) {
-        return geometries;
+      const items = flattenImportedFeatures(parsed);
+      if (items.length > 0) {
+        return items;
       }
 
-      return parseGmlDocument(xmlDocument);
+      const geometries = parseGmlDocument(xmlDocument);
+      return geometries.map((geometry: any) => ({ geometry }));
     }
   } catch {
     return [];
   }
 
   return [];
+};
+
+export const parseImportedGeometryText = (fileName: string, text: string): ParsedGeometry[] => {
+  return parseImportedGeometryItems(fileName, text).map((item) => item.geometry);
 };

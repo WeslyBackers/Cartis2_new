@@ -15,6 +15,7 @@ import { useTableSort } from '../hooks/useTableSort';
 import FileUpload from '../components/FileUpload';
 import CoordinateField, { CoordFormatSelector, CoordFormat, isProjectedFormat, ProjectedCoordinateInput } from '../components/CoordinateInput';
 import PostalMime from 'postal-mime';
+import { parseImportedGeometryItems } from '../utils/geometryImport';
 import { getApiErrorMessage } from '../utils/errorUtils';
 
 type ProductionLine = {
