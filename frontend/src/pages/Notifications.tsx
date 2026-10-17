@@ -16,6 +16,7 @@ import FileUpload from '../components/FileUpload';
 import CoordinateField, { CoordFormatSelector, CoordFormat, isProjectedFormat, ProjectedCoordinateInput } from '../components/CoordinateInput';
 import PostalMime from 'postal-mime';
 import { getApiErrorMessage } from '../utils/errorUtils';
+import { parseImportedGeometryText } from '../utils/geometryImport';
 
 type ProductionLine = {
   id: number;
@@ -1035,6 +1036,41 @@ export default function Notifications() {
     createNotificationMutation.mutate(dataToSend);
   };
 
+  const handleNewNotificationGeometryFile = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    try {
+      const text = await file.text();
+      const geometries = parseImportedGeometryText(file.name, text);
+
+      if (geometries.length === 0) {
+        alert('Het geselecteerde bestand bevat geen geldige KML/GML geometrie voor punten, lijnen of vlakken.');
+        return;
+      }
+
+      const label = file.name.replace(/\.[^.]+$/, '') || 'Geïmporteerde geometrie';
+      const description = `Geïmporteerd uit ${file.name}`;
+      setNewNotificationGeometries((previous) => [
+        ...previous,
+        ...geometries.map((geometry, index) => ({
+          geometry,
+          name: geometries.length > 1 ? `${label} ${index + 1}` : label,
+          description,
+        })),
+      ]);
+      setNewNotificationDrawingMode('none');
+      alert(`${geometries.length} geometrie${geometries.length === 1 ? '' : 'ën'} uit ${file.name} toegevoegd.`);
+    } catch (error) {
+      console.error('Error importing geometry file:', error);
+      alert('De geometrie kon niet worden ingelezen. Controleer of het bestand een geldig KML- of GML-bestand is.');
+    } finally {
+      event.target.value = '';
+    }
+  };
+
   const handleNewNotificationShapeCreated = (geometry: any) => {
     const geometryWithMeta = {
       geometry,
@@ -2044,6 +2080,18 @@ export default function Notifications() {
                 <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '0.5rem' }}>
                   Locatie (optioneel)
                 </label>
+
+                <div style={{ marginBottom: '1rem', padding: '0.75rem', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
+                  <label htmlFor="new-notification-geometry-file" style={{ display: 'block', fontSize: '0.9rem', fontWeight: '500', marginBottom: '0.4rem' }}>
+                    Of importeer een KML/GML bestand:
+                  </label>
+                  <input
+                    id="new-notification-geometry-file"
+                    type="file"
+                    accept=".kml,.gml,.geojson,.xml"
+                    onChange={handleNewNotificationGeometryFile}
+                  />
+                </div>
                 
                 {/* Toggle between draw and type */}
                 <div style={{ marginBottom: '1rem', display: 'flex', gap: '0.5rem' }}>
