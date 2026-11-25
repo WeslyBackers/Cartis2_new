@@ -502,7 +502,25 @@ router.get('/', authenticate, async (req: AuthRequest, res) => {
     const params: any[] = [];
     let paramCount = 0;
 
-    // Note: productionLineId filter removed from main query since we now get all decisions
+    if (productionLineId) {
+      paramCount++;
+      query += ` AND (
+        EXISTS (
+          SELECT 1
+          FROM notifications_products np_line
+          JOIN products p_line ON p_line.id = np_line.product_id
+          WHERE np_line.notification_id = n.id
+            AND p_line.production_line_id = $${paramCount}
+        )
+        OR EXISTS (
+          SELECT 1
+          FROM notification_decisions nd_line
+          WHERE nd_line.notification_id = n.id
+            AND nd_line.production_line_id = $${paramCount}
+        )
+      )`;
+      params.push(productionLineId);
+    }
 
     if (undecidedOnly === 'true') {
       if (productionLineId) {

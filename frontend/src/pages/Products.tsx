@@ -194,6 +194,7 @@ export default function Products() {
       });
       return response.data;
     },
+    enabled: !!currentProductionLineId,
   });
 
   const visibleProducts = (products || []).filter((product: any) => !isIntegratedCorrectionListCode(product?.code));

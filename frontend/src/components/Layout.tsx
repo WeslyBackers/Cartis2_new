@@ -32,8 +32,9 @@ export default function Layout() {
     api.get('/auth/me').then((res) => setUser(res.data)).catch(() => {/* ignore */});
   }, []);
 
-  // Use the production lines the user has rights to (already available from login)
-  const productionLines = user?.rights ?? [];
+  const productionLines = user?.rights.filter(
+    (line) => line.can_view || line.can_edit || line.can_publish
+  ) ?? [];
 
   const handleLogout = () => {
     logout();
@@ -58,7 +59,7 @@ export default function Layout() {
           <div className="production-line-selector">
             <label>Productielijn:</label>
             <select
-              value={currentProductionLineId || ''}
+              value={currentProductionLineId ?? ''}
               onChange={(e) => {
                 const selectedValue = e.target.value;
                 setCurrentProductionLine(selectedValue === '' ? null : Number(selectedValue));
@@ -69,7 +70,7 @@ export default function Layout() {
               } : undefined}
             >
               <option value="">-- Selecteer --</option>
-              {productionLines?.map((pl: any) => (
+              {productionLines.map((pl) => (
                 <option key={pl.id} value={pl.id}>
                   {pl.name} ({pl.code}){Number(pl.id) === Number(user?.defaultProductionLineId) ? ' — standaard' : ''}
                 </option>
