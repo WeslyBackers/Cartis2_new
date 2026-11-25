@@ -6,7 +6,7 @@ interface User {
   email: string;
   firstName: string;
   lastName: string;
-  defaultProductionLineId: number;
+  defaultProductionLineId: number | null;
   defaultProductionLineName: string | null;
   rights: Array<{
     id: number;
@@ -35,19 +35,18 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       currentProductionLineId: null,
       setAuth: (token, user) => {
-        // The user's default production line is only usable if they actually
-        // have a rights row for it. Onboarding scripts sometimes set
-        // default_production_line_id without granting rights for that line,
-        // which would silently select an inaccessible line (e.g. note
-        // creation failing with "no edit rights" right after login).
         const rights = user.rights ?? [];
-        const hasDefaultRight = rights.some((r) => Number(r.id) === Number(user.defaultProductionLineId));
-        const fallbackLineId = rights.find((r) => r.can_edit)?.id ?? rights[0]?.id ?? null;
+        const standardProductionLine = rights.find((right) => right.can_edit) ?? null;
+        const resolvedUser = {
+          ...user,
+          defaultProductionLineId: standardProductionLine?.id ?? null,
+          defaultProductionLineName: standardProductionLine?.name ?? null,
+        };
 
         set({
           token,
-          user,
-          currentProductionLineId: hasDefaultRight ? user.defaultProductionLineId : fallbackLineId,
+          user: resolvedUser,
+          currentProductionLineId: standardProductionLine?.id ?? null,
         });
       },
       setUser: (user) => set({ user }),

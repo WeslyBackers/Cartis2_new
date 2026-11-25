@@ -13,10 +13,15 @@ async function getUserRights(userId: number) {
     `SELECT pl.id, pl.code, pl.name, upr.can_view, upr.can_edit, upr.can_publish
      FROM user_production_line_rights upr
      JOIN production_lines pl ON pl.id = upr.production_line_id
-     WHERE upr.user_id = $1 AND pl.is_active = true`,
+     WHERE upr.user_id = $1 AND pl.is_active = true
+     ORDER BY pl.id`,
     [userId]
   );
   return result.rows;
+}
+
+function getStandardProductionLine(rights: Awaited<ReturnType<typeof getUserRights>>) {
+  return rights.find((right) => right.can_edit) ?? null;
 }
 
 // Login
@@ -29,7 +34,7 @@ router.post('/login', async (req, res) => {
     }
 
     const userResult = await pool.query(
-      'SELECT id, email, password_hash, first_name, last_name, default_production_line_id, is_active FROM users WHERE email = $1',
+      'SELECT id, email, password_hash, first_name, last_name, is_active FROM users WHERE email = $1',
       [email]
     );
 
@@ -54,18 +59,11 @@ router.post('/login', async (req, res) => {
     );
 
     const rights = await getUserRights(user.id);
-
-    // Resolve default production line name (may not be in user rights)
-    const defaultPlFromRights = rights.find((r: any) => r.id === user.default_production_line_id);
-    let defaultProductionLineName: string | null = defaultPlFromRights?.name ?? null;
-    if (!defaultProductionLineName && user.default_production_line_id) {
-      const plResult = await pool.query('SELECT name FROM production_lines WHERE id = $1', [user.default_production_line_id]);
-      if (plResult.rows.length > 0) defaultProductionLineName = plResult.rows[0].name;
-    }
+    const standardProductionLine = getStandardProductionLine(rights);
 
     const expiresIn = (process.env.JWT_EXPIRES_IN || '24h') as SignOptions['expiresIn'];
     const token = jwt.sign(
-      { id: user.id, email: user.email, productionLineId: user.default_production_line_id },
+      { id: user.id, email: user.email, productionLineId: standardProductionLine?.id },
       process.env.JWT_SECRET || 'your-secret-key',
       { expiresIn }
     );
@@ -77,8 +75,8 @@ router.post('/login', async (req, res) => {
         email: user.email,
         firstName: user.first_name,
         lastName: user.last_name,
-        defaultProductionLineId: user.default_production_line_id,
-        defaultProductionLineName,
+        defaultProductionLineId: standardProductionLine?.id ?? null,
+        defaultProductionLineName: standardProductionLine?.name ?? null,
         rights,
       },
     });
@@ -94,7 +92,7 @@ router.get('/me', authenticate, async (req: AuthRequest, res) => {
     const userId = req.user?.id;
 
     const userResult = await pool.query(
-      'SELECT id, email, first_name, last_name, default_production_line_id FROM users WHERE id = $1',
+      'SELECT id, email, first_name, last_name FROM users WHERE id = $1',
       [userId]
     );
 
@@ -104,21 +102,15 @@ router.get('/me', authenticate, async (req: AuthRequest, res) => {
 
     const user = userResult.rows[0];
     const rights = await getUserRights(user.id);
-
-    const defaultPlFromRights = rights.find((r: any) => r.id === user.default_production_line_id);
-    let defaultProductionLineName: string | null = defaultPlFromRights?.name ?? null;
-    if (!defaultProductionLineName && user.default_production_line_id) {
-      const plResult = await pool.query('SELECT name FROM production_lines WHERE id = $1', [user.default_production_line_id]);
-      if (plResult.rows.length > 0) defaultProductionLineName = plResult.rows[0].name;
-    }
+    const standardProductionLine = getStandardProductionLine(rights);
 
     res.json({
       id: user.id,
       email: user.email,
       firstName: user.first_name,
       lastName: user.last_name,
-      defaultProductionLineId: user.default_production_line_id,
-      defaultProductionLineName,
+      defaultProductionLineId: standardProductionLine?.id ?? null,
+      defaultProductionLineName: standardProductionLine?.name ?? null,
       rights,
     });
   } catch (error) {
