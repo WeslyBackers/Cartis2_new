@@ -28,6 +28,28 @@ interface AuthState {
   logout: () => void;
 }
 
+function getDefaultProductionLine(user: User) {
+  const rights = user.rights ?? [];
+  const accessibleLines = rights.filter(
+    (right) => right.can_view || right.can_edit || right.can_publish
+  );
+  const configuredDefault = accessibleLines.find(
+    (right) =>
+      user.defaultProductionLineId != null &&
+      Number(right.id) === Number(user.defaultProductionLineId)
+  );
+  const standardLine =
+    configuredDefault ??
+    accessibleLines.find((right) => right.can_edit) ??
+    accessibleLines[0] ??
+    null;
+
+  return {
+    defaultProductionLineId: standardLine?.id ?? null,
+    defaultProductionLineName: standardLine?.name ?? null,
+  };
+}
+
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
@@ -35,21 +57,30 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       currentProductionLineId: null,
       setAuth: (token, user) => {
-        const rights = user.rights ?? [];
-        const standardProductionLine = rights.find((right) => right.can_edit) ?? null;
-        const resolvedUser = {
-          ...user,
-          defaultProductionLineId: standardProductionLine?.id ?? null,
-          defaultProductionLineName: standardProductionLine?.name ?? null,
-        };
+        const resolvedUser = { ...user, ...getDefaultProductionLine(user) };
 
         set({
           token,
           user: resolvedUser,
-          currentProductionLineId: standardProductionLine?.id ?? null,
+          currentProductionLineId: resolvedUser.defaultProductionLineId,
         });
       },
-      setUser: (user) => set({ user }),
+      setUser: (user) =>
+        set((state) => {
+          const resolvedUser = { ...user, ...getDefaultProductionLine(user) };
+          const selectedLine = user.rights?.find(
+            (right) =>
+              (right.can_view || right.can_edit || right.can_publish) &&
+              state.currentProductionLineId != null &&
+              Number(right.id) === Number(state.currentProductionLineId)
+          );
+
+          return {
+            user: resolvedUser,
+            currentProductionLineId:
+              selectedLine?.id ?? resolvedUser.defaultProductionLineId,
+          };
+        }),
       setCurrentProductionLine: (id) => set({ currentProductionLineId: id }),
       logout: () => {
         set({ token: null, user: null, currentProductionLineId: null });
