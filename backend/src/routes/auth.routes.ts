@@ -20,8 +20,24 @@ async function getUserRights(userId: number) {
   return result.rows;
 }
 
-function getStandardProductionLine(rights: Awaited<ReturnType<typeof getUserRights>>) {
-  return rights.find((right) => right.can_edit) ?? null;
+function getStandardProductionLine(
+  rights: Awaited<ReturnType<typeof getUserRights>>,
+  defaultProductionLineId: number | null
+) {
+  const accessibleRights = rights.filter(
+    (right) => right.can_view || right.can_edit || right.can_publish
+  );
+
+  return (
+    accessibleRights.find(
+      (right) =>
+        defaultProductionLineId != null &&
+        Number(right.id) === Number(defaultProductionLineId)
+    ) ??
+    accessibleRights.find((right) => right.can_edit) ??
+    accessibleRights[0] ??
+    null
+  );
 }
 
 // Login
@@ -34,7 +50,7 @@ router.post('/login', async (req, res) => {
     }
 
     const userResult = await pool.query(
-      'SELECT id, email, password_hash, first_name, last_name, is_active FROM users WHERE email = $1',
+      'SELECT id, email, password_hash, first_name, last_name, default_production_line_id, is_active FROM users WHERE email = $1',
       [email]
     );
 
@@ -59,7 +75,10 @@ router.post('/login', async (req, res) => {
     );
 
     const rights = await getUserRights(user.id);
-    const standardProductionLine = getStandardProductionLine(rights);
+    const standardProductionLine = getStandardProductionLine(
+      rights,
+      user.default_production_line_id
+    );
 
     const expiresIn = (process.env.JWT_EXPIRES_IN || '24h') as SignOptions['expiresIn'];
     const token = jwt.sign(
@@ -92,7 +111,7 @@ router.get('/me', authenticate, async (req: AuthRequest, res) => {
     const userId = req.user?.id;
 
     const userResult = await pool.query(
-      'SELECT id, email, first_name, last_name FROM users WHERE id = $1',
+      'SELECT id, email, first_name, last_name, default_production_line_id FROM users WHERE id = $1',
       [userId]
     );
 
@@ -102,7 +121,10 @@ router.get('/me', authenticate, async (req: AuthRequest, res) => {
 
     const user = userResult.rows[0];
     const rights = await getUserRights(user.id);
-    const standardProductionLine = getStandardProductionLine(rights);
+    const standardProductionLine = getStandardProductionLine(
+      rights,
+      user.default_production_line_id
+    );
 
     res.json({
       id: user.id,
